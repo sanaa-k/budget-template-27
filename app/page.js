@@ -49,7 +49,7 @@ export default function Home() {
     if (document.getElementById('bt-script')) return
     const s = document.createElement('script')
     s.id = 'bt-script'
-    s.src = '/budget.js'
+    s.src = '/budget.js?v=' + (process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || Date.now())
     document.body.appendChild(s)
   }, [phase])
 

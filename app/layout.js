@@ -8,7 +8,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet" />
-        <link rel="stylesheet" href="/budget.css" />
+        <link rel="stylesheet" href={'/budget.css?v=' + (process.env.VERCEL_GIT_COMMIT_SHA || Date.now())} />
       </head>
       <body>{children}</body>
     </html>

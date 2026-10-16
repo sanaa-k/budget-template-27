@@ -12,7 +12,8 @@ function tipHtml(T,cls,aria){return `<span class="tipwrap ${cls||''}"><button ty
 const MONTHS=(()=>{const a=[];let y=2026,m=10;for(let i=0;i<15;i++){a.push(y+'-'+String(m).padStart(2,'0'));m++;if(m>12){m=1;y++}}return a})();
 const MNAME=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const QUARTERS=[{q:'Q4 2026',end:'2026-12'},{q:'Q1 2027',end:'2027-03'},{q:'Q2 2027',end:'2027-06'},{q:'Q3 2027',end:'2027-09'},{q:'Q4 2027',end:'2027-12'}];
-function applyPalette(){document.documentElement.removeAttribute('data-palette')}
+const PALETTES=[{k:'forest',n:'Forest',c:'#2F5D46'},{k:'ocean',n:'Ocean',c:'#3E6A82'},{k:'berry',n:'Berry',c:'#7E4B66'},{k:'graphite',n:'Graphite',c:'#3A3F45'}];
+function applyPalette(){const r=document.documentElement,p=(typeof S!=='undefined'&&S.palette)||'forest';if(p==='forest')r.removeAttribute('data-palette');else r.setAttribute('data-palette',p)}
 const STORE='bt_proto_v1', SESSION='bt_proto_user';
 
 /* ---------- helpers ---------- */
@@ -215,6 +216,7 @@ function shell(inner){
   <header class="top"><div class="top-in">
     <div class="brand">Budget Template</div>
     <nav class="tabs" aria-label="Sections">${t.map(([k,l])=>`<button class="tab" data-a="tab" data-v="${k}" ${tab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>
+    <div class="swatches" role="group" aria-label="Colour scheme">${PALETTES.map(p=>`<button class="sw-btn" style="background:${p.c}" data-a="palette" data-v="${p.k}" aria-label="${p.n} colour scheme" title="${p.n}" aria-pressed="${(S.palette||'forest')===p.k}"></button>`).join('')}</div>
     <div class="who"><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
   </div></header>
   <main>${inner}
@@ -571,7 +573,8 @@ document.addEventListener('click',e=>{
   if(tb){tb.parentElement.classList.toggle('open');requestAnimationFrame(()=>fitTip(tb.parentElement));return}
   const b=e.target.closest('[data-a]');if(!b)return;
   const a=b.dataset.a,v=b.dataset.v;
-  if(a==='enter'){user=emailVal||'demo@example.com';try{localStorage.setItem(SESSION,user)}catch(x){}render()}
+  if(a==='palette'){S.palette=v;save();applyPalette();render();toast(PALETTES.find(p=>p.k===v).n+' colour scheme')}
+  else if(a==='enter'){user=emailVal||'demo@example.com';try{localStorage.setItem(SESSION,user)}catch(x){}render()}
   else if(a==='back-email'){step='email';render()}
   else if(a==='signout'){if(window.__BT_SIGNOUT)window.__BT_SIGNOUT()}
   else if(a==='tab'){cancelEdit();if(tab==='cats'&&v!=='cats'){S.setupDone=true;save()}tab=v;render();window.scrollTo(0,0)}

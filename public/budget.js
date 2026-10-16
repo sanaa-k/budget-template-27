@@ -473,16 +473,14 @@ function renderNW(){
   const barP=(x,v,c,tt)=>{const y0=Y(0),y1=Y(v),h=Math.abs(y1-y0);if(h<1)return '';const r=Math.min(4,h),ex=x+bw,up=v>=0;
     return `<path d="${up?`M${x},${y0} V${y1+r} Q${x},${y1} ${x+r},${y1} H${ex-r} Q${ex},${y1} ${ex},${y1+r} V${y0} Z`:`M${x},${y0} V${y1-r} Q${x},${y1} ${x+r},${y1} H${ex-r} Q${ex},${y1} ${ex},${y1-r} V${y0} Z`}" fill="${c}"><title>${esc(tt)}</title></path>`};
   const pts=nw.map((v,i)=>act[i]?X(i)+','+Y(v):'').filter(Boolean).join(' ');
-  const pc=(c,p)=>p===0?null:(c-p)/Math.abs(p)*100;
-  const qp=(arr,i,goodUp,x,y,anchor,bold)=>{if(i===0||!act[i]||!act[i-1])return '';const v=pc(arr[i],arr[i-1]);if(v===null||Math.abs(v)<0.05)return '';const up=v>0,good=up===goodUp;return `<text x="${x}" y="${y}" text-anchor="${anchor||'middle'}" font-size="${bold?12:11}" font-weight="${bold?700:500}" fill="var(--ink)"><tspan fill="${good?'var(--forest)':'var(--amber)'}">${up?'▲':'▼'}</tspan> ${Math.abs(v).toFixed(1)}%</text>`};
+  const dchg=(i)=>{if(i===0||!act[i]||!act[i-1])return '';const d=r2(nw[i]-nw[i-1]);if(d===0)return '';const up=d>0;return `<text x="${X(i)}" y="${H-8}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)"><tspan fill="${up?'var(--forest)':'var(--amber)'}">${up?'▲':'▼'}</tspan> ${money(Math.abs(d))}</text>`};
   const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Assets above zero, liabilities below zero and net worth by quarter">
     ${ticks.map(v=>`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-opacity="${v===0?1:.6}"/><text x="${pl-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${kf(v)}</text>`).join('')}
     ${QUARTERS.map((x,i)=>!act[i]?'':barP(X(i)-bw/2,A[i],'var(--teal)',`${x.q}: assets ${money(A[i])}`)+barP(X(i)-bw/2,-L[i],'var(--amber)',`${x.q}: owed ${money(L[i])}`)).join('')}
     <polyline fill="none" stroke="var(--forest)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>
     ${nw.map((v,i)=>!act[i]?'':`<circle cx="${X(i)}" cy="${Y(v)}" r="5.5" fill="var(--forest)" stroke="var(--surface)" stroke-width="2.5"><title>${QUARTERS[i].q}: net worth ${money(v)}</title></circle>`).join('')}
-    ${QUARTERS.map((x,i)=>!act[i]?'':qp(A,i,true,X(i),Y(A[i])-7)+qp(L,i,false,X(i),Y(-L[i])+16)).join('')}
-    ${QUARTERS.map((x,i)=>`<text x="${X(i)}" y="${H-26}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.q}</text>${act[i]?qp(nw,i,true,X(i),H-8,'middle',1):''}`).join('')}</svg>
-    <div class="legend"><span><i class="sw" style="background:var(--teal)"></i>Assets</span><span><i class="sw" style="background:var(--amber)"></i>Owed</span><span><i class="sw" style="background:var(--forest);height:4px;margin-top:5px"></i>Net worth</span><span class="muted">% = change vs last quarter</span></div>`;
+    ${QUARTERS.map((x,i)=>`<text x="${X(i)}" y="${H-26}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.q}</text>${dchg(i)}`).join('')}</svg>
+    <div class="legend"><span><i class="sw" style="background:var(--teal)"></i>Assets</span><span><i class="sw" style="background:var(--amber)"></i>Owed</span><span><i class="sw" style="background:var(--forest);height:4px;margin-top:5px"></i>Net worth</span><span class="muted">Under each quarter: net worth change vs last quarter</span></div>`;
 
   const head=`<tr><th></th>${QUARTERS.map(x=>`<th>${x.q}</th>`).join('')}</tr>`;
   return `<div class="bar"><h1>Net Worth</h1></div>

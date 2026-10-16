@@ -220,7 +220,7 @@ function shell(inner){
     <div class="who"><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
   </div></header>
   <main>${inner}
-    <div class="foot"><button class="btn ghost" data-a="clear">${wipeArmed?'Click again to clear all numbers':'Clear all numbers'}</button><span class="small muted">Covers Oct 2026 to Dec 2027.</span></div>
+    <div class="foot"><button class="btn ghost" data-a="clear">${wipeArmed?'This erases everything you entered. Click again to confirm':'Clear all numbers'}</button><span class="small muted">Covers Oct 2026 to Dec 2027.</span></div>
   </main>
   ${tab==='month'&&isMobile()?(sheetOpen?sheetHtml():`<button class="fab" data-a="opensheet" aria-label="Add a transaction"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>`):''}`;
 }

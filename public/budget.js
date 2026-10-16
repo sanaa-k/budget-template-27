@@ -12,8 +12,7 @@ function tipHtml(T,cls,aria){return `<span class="tipwrap ${cls||''}"><button ty
 const MONTHS=(()=>{const a=[];let y=2026,m=10;for(let i=0;i<15;i++){a.push(y+'-'+String(m).padStart(2,'0'));m++;if(m>12){m=1;y++}}return a})();
 const MNAME=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const QUARTERS=[{q:'Q4 2026',end:'2026-12'},{q:'Q1 2027',end:'2027-03'},{q:'Q2 2027',end:'2027-06'},{q:'Q3 2027',end:'2027-09'},{q:'Q4 2027',end:'2027-12'}];
-const PALETTES=[{k:'forest',n:'Forest',c:'#2F5D46'},{k:'ocean',n:'Ocean',c:'#245A7D'},{k:'berry',n:'Berry',c:'#7A2E56'},{k:'graphite',n:'Graphite',c:'#33383F'}];
-function applyPalette(){const r=document.documentElement,p=(typeof S!=='undefined'&&S.palette)||'forest';if(p==='forest')r.removeAttribute('data-palette');else r.setAttribute('data-palette',p)}
+function applyPalette(){document.documentElement.removeAttribute('data-palette')}
 const STORE='bt_proto_v1', SESSION='bt_proto_user';
 
 /* ---------- helpers ---------- */
@@ -216,7 +215,6 @@ function shell(inner){
   <header class="top"><div class="top-in">
     <div class="brand">Budget Template</div>
     <nav class="tabs" aria-label="Sections">${t.map(([k,l])=>`<button class="tab" data-a="tab" data-v="${k}" ${tab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>
-    <div class="swatches" role="group" aria-label="Colour scheme">${PALETTES.map(p=>`<button class="sw-btn" style="background:${p.c}" data-a="palette" data-v="${p.k}" aria-label="${p.n} colour scheme" title="${p.n}" aria-pressed="${(S.palette||'forest')===p.k}"></button>`).join('')}</div>
     <div class="who"><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
   </div></header>
   <main>${inner}
@@ -465,22 +463,32 @@ function renderNW(){
   const sum=(qi,list)=>r2(list.reduce((a,x)=>a+nwCalc(qi,x.id).v,0));
   const A=QUARTERS.map((x,i)=>sum(i,assets)),L=QUARTERS.map((x,i)=>sum(i,liab)),nw=A.map((a,i)=>r2(a-L[i]));
   const act=QUARTERS.map((x,i)=>nwStarted(i)),la=Math.max(0,act.lastIndexOf(true)),on=arr=>arr.filter((v,i)=>act[i]);
-  const mn=Math.min(0,...on(nw)),mxv=Math.max(1,...on(A),...on(L),...on(nw)),W=660,H=240,P=40,R=120,T=24,last=QUARTERS.length-1;
-  const X=i=>P+i*(W-P-R)/last,Y=v=>H-P-(v-mn)/(mxv-mn||1)*(H-P-T);
-  const endLabels=[{y:Y(A[la]),t:'Assets '+money(A[la]),m:1},{y:Y(nw[la]),t:'Net worth '+money(nw[la]),b:1},{y:Y(L[la]),t:'Owed '+money(L[la]),m:1}].sort((a,b)=>a.y-b.y);
-  for(let i=1;i<endLabels.length;i++)if(endLabels[i].y-endLabels[i-1].y<16)endLabels[i].y=endLabels[i-1].y+16;
-  const line=(arr,color,w,dash,o)=>`<polyline fill="none" stroke="${color}" stroke-width="${w}" ${o?`stroke-opacity="${o}"`:''} ${dash?`stroke-dasharray="${dash}"`:''} stroke-linejoin="round" points="${arr.map((v,i)=>act[i]?X(i)+','+Y(v):'').filter(Boolean).join(' ')}"/>`;
-  const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Assets, liabilities and net worth by quarter"><line x1="${P}" y1="${Y(0)}" x2="${W-R}" y2="${Y(0)}" stroke="var(--line)"/>
-    ${line(A,'var(--teal)',2,0,.4)}${line(L,'var(--amber)',2,'6 5',.45)}${line(nw,'var(--forest)',4.5)}
-    ${A.map((v,i)=>!act[i]?'':`<rect x="${X(i)-3}" y="${Y(v)-3}" width="6" height="6" fill="var(--teal)" fill-opacity=".45"/>`).join('')}
-    ${L.map((v,i)=>!act[i]?'':`<path d="M${X(i)} ${Y(v)-4} L${X(i)+4} ${Y(v)} L${X(i)} ${Y(v)+4} L${X(i)-4} ${Y(v)} Z" fill="var(--amber)" fill-opacity=".5"/>`).join('')}
-    ${nw.map((v,i)=>{if(!act[i])return '';const clash=Math.abs(Y(L[i])-(Y(v)-12))<18||Math.abs(Y(A[i])-(Y(v)-12))<18,ty=clash?Y(v)+24:Y(v)-12;return `<circle cx="${X(i)}" cy="${Y(v)}" r="5.5" fill="var(--forest)"/>${i<la?`<text x="${X(i)}" y="${ty}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)" stroke="var(--surface)" stroke-width="4" paint-order="stroke">${money(v)}</text>`:''}`}).join('')}
-    ${endLabels.map(e=>`<text x="${X(la)+12}" y="${e.y+4}" font-size="${e.m?11:12}" ${e.b?'font-weight="700"':''} fill="${e.m?'var(--muted)':'var(--ink)'}">${e.t}</text>`).join('')}
-    ${QUARTERS.map((x,i)=>`<text x="${X(i)}" y="${H-12}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.q}</text>`).join('')}</svg>
-    <div class="legend"><span><i class="sw" style="background:var(--teal);opacity:.5"></i>Assets</span><span><i class="sw" style="background:var(--amber);opacity:.55"></i>Liabilities</span><span><i class="sw" style="background:var(--forest)"></i>Net worth (assets minus liabilities)</span></div>`;
+  const mob=isMobile(),W=mob?380:660,H=mob?250:280,pl=48,pr=12,pt=14,pb=30,band=(W-pl-pr)/QUARTERS.length,X=i=>pl+band*(i+.5),bw=24;
+  const hiV=Math.max(1000,...on(A)),loV=Math.max(1000,...on(L)),stp=(()=>{const raw=Math.max(hiV,loV)/2,m=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/m;return (f<=1?1:f<=2?2:f<=5?5:10)*m})();
+  const top=Math.ceil(hiV/stp)*stp,bot=-Math.ceil(loV/stp)*stp,Y=v=>pt+(top-v)/(top-bot)*(H-pt-pb);
+  const kf=v=>v===0?'$0':(v<0?'-':'')+'$'+(Math.abs(v)>=1000?Math.round(Math.abs(v)/100)/10+'K':Math.abs(v));
+  const ticks=[];for(let v=bot;v<=top;v+=stp)ticks.push(v);
+  const barP=(x,v,c,tt)=>{const y0=Y(0),y1=Y(v),h=Math.abs(y1-y0);if(h<1)return '';const r=Math.min(4,h),ex=x+bw,up=v>=0;
+    return `<path d="${up?`M${x},${y0} V${y1+r} Q${x},${y1} ${x+r},${y1} H${ex-r} Q${ex},${y1} ${ex},${y1+r} V${y0} Z`:`M${x},${y0} V${y1-r} Q${x},${y1} ${x+r},${y1} H${ex-r} Q${ex},${y1} ${ex},${y1-r} V${y0} Z`}" fill="${c}"><title>${esc(tt)}</title></path>`};
+  const pts=nw.map((v,i)=>act[i]?X(i)+','+Y(v):'').filter(Boolean).join(' ');
+  const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Assets above zero, liabilities below zero and net worth by quarter">
+    ${ticks.map(v=>`<line x1="${pl}" x2="${W-pr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-opacity="${v===0?1:.6}"/><text x="${pl-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${kf(v)}</text>`).join('')}
+    ${QUARTERS.map((x,i)=>!act[i]?'':barP(X(i)-bw/2,A[i],'var(--teal)',`${x.q}: assets ${money(A[i])}`)+barP(X(i)-bw/2,-L[i],'var(--amber)',`${x.q}: owed ${money(L[i])}`)).join('')}
+    <polyline fill="none" stroke="var(--forest)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>
+    ${nw.map((v,i)=>!act[i]?'':`<circle cx="${X(i)}" cy="${Y(v)}" r="5.5" fill="var(--forest)" stroke="var(--surface)" stroke-width="2.5"><title>${QUARTERS[i].q}: net worth ${money(v)}</title></circle>`).join('')}
+    ${QUARTERS.map((x,i)=>`<text x="${X(i)}" y="${H-8}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.q}</text>`).join('')}</svg>
+    <div class="legend"><span><i class="sw" style="background:var(--teal)"></i>Assets</span><span><i class="sw" style="background:var(--amber)"></i>Owed</span><span><i class="sw" style="background:var(--forest);height:4px;margin-top:5px"></i>Net worth</span></div>`;
+  const pc=(c,p)=>p===0?null:(c-p)/Math.abs(p)*100;
+  const qcell=(arr,i,goodUp)=>{if(i===0||!act[i]||!act[i-1])return '<td class="qc">–</td>';const v=pc(arr[i],arr[i-1]);if(v===null||Math.abs(v)<0.05)return '<td class="qc">–</td>';
+    const up=v>0,good=up===goodUp;return `<td class="qc ${good?'qgood':'qbad'}">${up?'▲':'▼'} ${Math.abs(v).toFixed(1)}%</td>`};
+  const qoq=`<table class="gtab qoq"><thead><tr><th></th>${QUARTERS.map(x=>`<th>${x.q}</th>`).join('')}</tr></thead><tbody>
+    <tr><td>Net worth</td>${QUARTERS.map((x,i)=>qcell(nw,i,true)).join('')}</tr>
+    <tr><td>Assets</td>${QUARTERS.map((x,i)=>qcell(A,i,true)).join('')}</tr>
+    <tr><td>Owed</td>${QUARTERS.map((x,i)=>qcell(L,i,false)).join('')}</tr></tbody></table>`;
   const head=`<tr><th></th>${QUARTERS.map(x=>`<th>${x.q}</th>`).join('')}</tr>`;
   return `<div class="bar"><h1>Net Worth</h1></div>
-  <div class="card"><h2>Net worth by quarter</h2>${svg}</div>
+  <div class="card"><div class="nwhero">${money(nw[la])}</div>${svg}</div>
+  <div class="card nw scroll" style="margin-top:16px"><h2>Change vs last quarter</h2>${qoq}</div>
   <div class="card nw scroll" style="margin-top:16px"><table class="gtab"><thead>${head}</thead><tbody>
    <tr><td colspan="6"><b>Assets</b></td></tr>
    ${assets.map(a=>`<tr><td>${esc(a.name)}</td>${QUARTERS.map((x,i)=>cell(i,a.id,a.name)).join('')}</tr>`).join('')}
@@ -563,8 +571,7 @@ document.addEventListener('click',e=>{
   if(tb){tb.parentElement.classList.toggle('open');requestAnimationFrame(()=>fitTip(tb.parentElement));return}
   const b=e.target.closest('[data-a]');if(!b)return;
   const a=b.dataset.a,v=b.dataset.v;
-  if(a==='palette'){S.palette=v;save();applyPalette();render();toast(PALETTES.find(p=>p.k===v).n+' colour scheme')}
-  else if(a==='enter'){user=emailVal||'demo@example.com';try{localStorage.setItem(SESSION,user)}catch(x){}render()}
+  if(a==='enter'){user=emailVal||'demo@example.com';try{localStorage.setItem(SESSION,user)}catch(x){}render()}
   else if(a==='back-email'){step='email';render()}
   else if(a==='signout'){if(window.__BT_SIGNOUT)window.__BT_SIGNOUT()}
   else if(a==='tab'){cancelEdit();if(tab==='cats'&&v!=='cats'){S.setupDone=true;save()}tab=v;render();window.scrollTo(0,0)}

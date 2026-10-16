@@ -301,3 +301,10 @@ table{width:100%;border-collapse:collapse}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:20;box-shadow:0 4px 18px rgba(0,0,0,.25)}
 .foot{margin-top:28px;padding-top:14px;border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 @media (prefers-reduced-motion:no-preference){.day,.btn,.tab{transition:background .12s,filter .12s}}
+
+.nwhero{font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:0 0 6px}
+.qoq .qc{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.qoq .qgood{color:var(--forest);font-weight:600}
+.qoq .qbad{color:var(--amber);font-weight:600}
+.qoq th{text-align:right}
+.qoq th:first-child{text-align:left}

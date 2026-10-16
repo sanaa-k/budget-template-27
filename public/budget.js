@@ -480,7 +480,7 @@ function renderNW(){
     <polyline fill="none" stroke="var(--forest)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" points="${pts}"/>
     ${nw.map((v,i)=>!act[i]?'':`<circle cx="${X(i)}" cy="${Y(v)}" r="5.5" fill="var(--forest)" stroke="var(--surface)" stroke-width="2.5"><title>${QUARTERS[i].q}: net worth ${money(v)}</title></circle>`).join('')}
     ${QUARTERS.map((x,i)=>`<text x="${X(i)}" y="${H-26}" text-anchor="middle" font-size="12" fill="var(--muted)">${x.q}</text>${dchg(i)}`).join('')}</svg>
-    <div class="legend"><span><i class="sw" style="background:var(--teal)"></i>Assets</span><span><i class="sw" style="background:var(--amber)"></i>Owed</span><span><i class="sw" style="background:var(--forest);height:4px;margin-top:5px"></i>Net worth</span><span class="muted">Under each quarter: net worth change vs last quarter</span></div>`;
+    <div class="legend"><span><i class="sw" style="background:var(--teal)"></i>Assets</span><span><i class="sw" style="background:var(--amber)"></i>Owed</span><span><i class="sw" style="background:var(--forest);height:4px;margin-top:5px"></i>Net worth</span></div>`;
 
   const head=`<tr><th></th>${QUARTERS.map(x=>`<th>${x.q}</th>`).join('')}</tr>`;
   return `<div class="bar"><h1>Net Worth</h1></div>

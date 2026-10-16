@@ -59,7 +59,12 @@ function seed(){
 }
 function load(){return window.__BT_INITIAL||null}
 function save(){try{if(window.__BT_SAVE)window.__BT_SAVE(S)}catch(e){}}
-let S=load()||seed();if(!S.bal)S.bal={};if(!S.rules)S.rules=[];if(!S.skip)S.skip={};
+function blank(){
+  const b=seed();b.tx=[];b.bal={};b.nw={};b.plan={};b.rules=[];b.skip={};MONTHS.forEach(m=>b.plan[m]={});
+  Object.keys(b.cats).forEach(k=>b.cats[k].forEach(c=>{['goal','open','start','limit','room'].forEach(f=>{if(c[f]!==undefined)c[f]=0})}));
+  b.v=3;return b;
+}
+let S=load()||blank();if(!S.bal)S.bal={};if(!S.rules)S.rules=[];if(!S.skip)S.skip={};
 function migrate3(){
   if(S.v>=3)return;
   (S.cats.debt||[]).forEach(c=>{if(c.paid){c.start=Math.max(0,r2((c.start||0)-c.paid))}delete c.paid});
@@ -393,7 +398,7 @@ function goalsCard(){
   const sRows=sv.map(s=>{const saved=currentBal(s.id),pct=Math.min(100,saved/s.goal*100),m=inMonth(s.id,cur);
     return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(saved)} of ${money(s.goal)}</span></div>${progBar(saved,m,s.goal)}<div class="small muted">${money(Math.max(0,s.goal-saved))} to go${m>0?`. ${money(m)} added in ${esc(mShort(cur))}.`:''}</div></div>`}).join('');
   const lRows=ln.map(s=>{const L=loanAt(s,cur),rem=L.rem,paid=L.total,m=L.m;
-    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(Math.max(0,rem))} remaining</span></div>${progBar(paid,m,s.start,'debt')}<div class="small muted">${money(paid)} paid since Oct 2026 of ${money(s.start)}${m>0?`. ${money(m)} in ${esc(mShort(cur))}.`:''}</div></div>`}).join('');
+    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(Math.max(0,rem))} remaining</span></div>${progBar(paid,m,s.start,'debt')}<div class="small muted">${money(m)} paid ${cur===realMonth()?'this month':'in '+esc(mShort(cur))}, of ${money(s.start)}</div></div>`}).join('');
   return `<div class="cols"><div class="card sav"><h2>Savings goals</h2>${sRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Starting balance</span><span><i class="sw" style="background:var(--forest)"></i>Added in ${esc(mShort(cur))}</span></div>`:''}${sRows||'<p class="empty">Set a goal amount on the Set-Up tab.</p>'}</div><div class="card dbt"><h2>Debt payoff</h2>${lRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Paid since Oct 2026</span><span><i class="sw debtc"></i>Paid in ${esc(mShort(cur))}</span></div>`:''}${lRows||'<p class="empty">Add a starting balance on the Set-Up tab.</p>'}</div></div>`;
 }
 function renderMonth(){

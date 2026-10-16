@@ -35,7 +35,7 @@ function seed(){
     bills:[mk('b1','Rent'),mk('b2','Student loan'),mk('b3','Car payment'),mk('b4','Utilities'),mk('b5','Phone bill'),mk('b6','Subscriptions'),mk('b7','Internet'),mk('b8','Gym membership')],
     expenses:['Gas','Groceries','Dining out','Shopping','Personal care','Pet supplies','Hobbies','Transportation','Health','Donations','Socials','Gifts','Coffee'].map((n,i)=>mk('e'+(i+1),n)),
     savings:[mk('s1','Emergency fund',{goal:5000,open:1200}),mk('s2','Travel fund',{goal:2000,open:0}),mk('s3','Gift budget',{goal:800,open:0})],
-    investments:[mk('n1','Retirement account',{room:12000,limit:7000}),mk('n3','Brokerage account',{limit:0}),mk('n4','Pension',{limit:0})],
+    investments:[mk('n1','Retirement account',{open:20000,room:12000}),mk('n3','Brokerage account'),mk('n4','Pension')],
     debt:[mk('d1','Loan',{start:5000})]
   };
   const base={i1:4200,b1:1200,b4:200,b5:60,b6:40,b8:30,e1:50,e2:400,e3:150,e4:100,e5:50,e13:40,s1:300,s2:100,n1:250,d1:150};
@@ -60,14 +60,21 @@ function seed(){
 function load(){return window.__BT_INITIAL||null}
 function save(){try{if(window.__BT_SAVE)window.__BT_SAVE(S)}catch(e){}}
 let S=load()||seed();if(!S.bal)S.bal={};if(!S.rules)S.rules=[];if(!S.skip)S.skip={};
+function migrate3(){
+  if(S.v>=3)return;
+  (S.cats.debt||[]).forEach(c=>{if(c.paid){c.start=Math.max(0,r2((c.start||0)-c.paid))}delete c.paid});
+  (S.cats.investments||[]).forEach(c=>{if(!c.room&&c.limit)c.room=c.limit;delete c.limit});
+  S.v=3;if(S.tx)save();
+}
 (function migrate(){
-  if(S.v>=2)return;
+  if(S.v>=2)return;/* v2 */
   const ph={e14:'Other category 1',e15:'Other category 2',e16:'Other category 3',e17:'Other category 4',s4:'Goal 4',s5:'Goal 5',d2:'Loan 2',d3:'Loan 3',d4:'Loan 4',n2:'Retirement account 2'};
   const used=id=>S.tx.some(t=>t.sub===id)||Object.values(S.plan||{}).some(p=>p&&p[id]>0)||Object.values(S.bal||{}).some(b=>b&&b[id]!==undefined)||Object.values(S.nw||{}).some(q=>q&&q[id]>0);
-  Object.keys(S.cats).forEach(k=>{S.cats[k]=S.cats[k].filter(c=>!(ph[c.id]&&c.name===ph[c.id]&&!used(c.id)&&!(c.goal||c.open||c.start||c.limit)));
+  Object.keys(S.cats).forEach(k=>{S.cats[k]=S.cats[k].filter(c=>!(ph[c.id]&&c.name===ph[c.id]&&!used(c.id)&&!(c.goal||c.open||c.start||c.room)));
     S.cats[k].forEach(c=>{if(c.id==='n1'&&c.name==='Retirement account 1')c.name='Retirement account';if(c.id==='d1'&&c.name==='Loan 1')c.name='Loan'})});
   S.v=2;save();
 })();
+migrate3();
 
 /* ---------- recurring items ---------- */
 const RANGE_FROM=MONTHS[0]+'-01', RANGE_TO=MONTHS[MONTHS.length-1]+'-31';
@@ -368,7 +375,7 @@ function currentBal(id){
   if(id==='cash')return e?e.v:0;
   if(e){const after=r2(allTime(id)-cum(id,e.m));return t==='debt'?Math.max(0,r2(e.v-after)):r2(e.v+after)}
   if(t==='savings')return r2((s.open||0)+allTime(id));
-  if(t==='investments')return allTime(id);
+  if(t==='investments')return r2((s.open||0)+allTime(id));
   if(t==='debt')return Math.max(0,r2((s.start||0)-allTime(id)));
   return 0;
 }
@@ -378,7 +385,7 @@ function progBar(total,add,max,kind){
 }
 const realMonth=()=>{const cm=todayStr().slice(0,7);return cm<MONTHS[0]?MONTHS[0]:(cm>MONTHS[MONTHS.length-1]?MONTHS[MONTHS.length-1]:cm)};
 function loanAt(s,mk){
-  const before=r2((s.paid||0)+S.tx.filter(t=>t.sub===s.id&&t.date.slice(0,7)<mk).reduce((a,t)=>a+t.amt,0)),m=inMonth(s.id,mk),total=r2(before+m);
+  const before=r2(S.tx.filter(t=>t.sub===s.id&&t.date.slice(0,7)<mk).reduce((a,t)=>a+t.amt,0)),m=inMonth(s.id,mk),total=r2(before+m);
   return {before,m,total,rem:Math.max(0,r2((s.start||0)-total))};
 }
 function goalsCard(){
@@ -386,8 +393,8 @@ function goalsCard(){
   const sRows=sv.map(s=>{const saved=currentBal(s.id),pct=Math.min(100,saved/s.goal*100),m=inMonth(s.id,cur);
     return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(saved)} of ${money(s.goal)}</span></div>${progBar(saved,m,s.goal)}<div class="small muted">${money(Math.max(0,s.goal-saved))} to go${m>0?`. ${money(m)} added in ${esc(mShort(cur))}.`:''}</div></div>`}).join('');
   const lRows=ln.map(s=>{const L=loanAt(s,cur),rem=L.rem,paid=L.total,m=L.m;
-    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(Math.max(0,rem))} remaining</span></div>${progBar(paid,m,s.start,'debt')}<div class="small muted">${money(paid)} paid so far of ${money(s.start)}${m>0?`. ${money(m)} in ${esc(mShort(cur))}.`:''}</div></div>`}).join('');
-  return `<div class="cols"><div class="card sav"><h2>Savings goals</h2>${sRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Starting balance</span><span><i class="sw" style="background:var(--forest)"></i>Added in ${esc(mShort(cur))}</span></div>`:''}${sRows||'<p class="empty">Set a goal amount on the Set-Up tab.</p>'}</div><div class="card dbt"><h2>Debt payoff</h2>${lRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Paid so far</span><span><i class="sw debtc"></i>Paid in ${esc(mShort(cur))}</span></div>`:''}${lRows||'<p class="empty">Add a starting balance on the Set-Up tab.</p>'}</div></div>`;
+    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(Math.max(0,rem))} remaining</span></div>${progBar(paid,m,s.start,'debt')}<div class="small muted">${money(paid)} paid since Oct 2026 of ${money(s.start)}${m>0?`. ${money(m)} in ${esc(mShort(cur))}.`:''}</div></div>`}).join('');
+  return `<div class="cols"><div class="card sav"><h2>Savings goals</h2>${sRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Starting balance</span><span><i class="sw" style="background:var(--forest)"></i>Added in ${esc(mShort(cur))}</span></div>`:''}${sRows||'<p class="empty">Set a goal amount on the Set-Up tab.</p>'}</div><div class="card dbt"><h2>Debt payoff</h2>${lRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Paid since Oct 2026</span><span><i class="sw debtc"></i>Paid in ${esc(mShort(cur))}</span></div>`:''}${lRows||'<p class="empty">Add a starting balance on the Set-Up tab.</p>'}</div></div>`;
 }
 function renderMonth(){
   const c=calc(cur);ensureDraft();
@@ -413,12 +420,11 @@ function renderOverview(){
   const mini=all.map(({m,c})=>`<div class="c"><div class="bars">${act.map(([k,l,col])=>`<i style="height:${c.g[k].actual/mxv*100}%;background:${col}" title="${esc(mLabel(m))} ${l} ${money(c.g[k].actual)}" aria-label="${esc(mLabel(m))} ${l} ${money(c.g[k].actual)}"></i>`).join('')}</div><span class="lb">${mShort(m)}</span></div>`).join('');
   const trendW=Math.max(0,all.length*(act.length*10+10));
   const yearUsed=(id,y)=>r2(S.tx.filter(t=>t.sub===id&&t.date.startsWith(String(y))).reduce((a,t)=>a+t.amt,0));
-  const room=s=>(s.room||0)>0?s.room:(s.limit||0);
+  const room=s=>s.room||0;
   const roomRow=(title,left,used,total,note)=>`<div class="goalrow"><div class="t"><b>${esc(title)}</b><span class="${left<0?'over':''}" ${left<0?'style="color:var(--bad);font-weight:600"':''}>${left<0?money(-left)+' over':money(left)+' room left'}</span></div><div class="prog"><i style="width:${total>0?Math.min(100,used/total*100):0}%${left<0?';background:var(--bad)':''}"></i></div><div class="small muted">${note}</div></div>`;
-  const lim=S.cats.investments.filter(s=>!s.archived&&(room(s)>0||(s.limit||0)>0)).map(s=>{
-    const r0=room(s),u26=yearUsed(s.id,2026),left26=r2(r0-u26),add=s.limit||0,avail27=r2(left26+add),u27=yearUsed(s.id,2027),left27=r2(avail27-u27);
-    return roomRow(s.name+' 2026 (Oct to Dec)',left26,u26,r0,`${money(u26)} used of ${money(r0)} total room`)
-      +roomRow(s.name+' 2027',left27,u27,avail27,`${money(u27)} used of ${money(avail27)}: ${money(Math.max(0,left26))} carried over${add?` + ${money(add)} new`:''}`);
+  const lim=S.cats.investments.filter(s=>!s.archived&&room(s)>0).map(s=>{
+    const r0=room(s),used=allTime(s.id),left=r2(r0-used);
+    return roomRow(s.name,left,used,r0,`${money(used)} contributed since Oct 2026 of ${money(r0)} room remaining at the start`);
   }).join('');
   return `<div class="bar"><h1>Oct 2026 to Dec 2027</h1></div>
   <div class="tiles ovt"><div class="tile"><div class="l">Total Income</div><div class="v">${money(tot.income)}</div><div class="h">Logged across all 15 months.</div></div>
@@ -441,7 +447,7 @@ function savingsMini(){
 }
 function debtMini(){
   const l=S.cats.debt.filter(s=>(s.start||0)>0&&!s.archived).map(s=>{const L=loanAt(s,realMonth());return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(L.rem)} remaining</span></div>${progBar(L.total,L.m,s.start,'debt')}</div>`}).join('');
-  return l?`<div class="legend" style="margin:4px 0"><span><i class="sw base"></i>Paid so far</span><span><i class="sw debtc"></i>Paid in ${esc(mShort(realMonth()))}</span></div>${l}`:'<p class="empty">Add a starting balance on the Set-Up tab.</p>';
+  return l?`<div class="legend" style="margin:4px 0"><span><i class="sw base"></i>Paid since Oct 2026</span><span><i class="sw debtc"></i>Paid in ${esc(mShort(realMonth()))}</span></div>${l}`:'<p class="empty">Add a starting balance on the Set-Up tab.</p>';
 }
 
 /* ---------- net worth ---------- */
@@ -458,8 +464,8 @@ function nwCalc(qi,id){
   if(!nwStarted(qi))return {v:0,entered:false};
   const hz=nwHorizon(),T=q.end<hz?q.end:hz,t=typeOf(id),s=subOf(id);
   if(t==='savings')return {v:r2((s.open||0)+cum(id,T)),entered:false};
-  if(t==='investments')return {v:cum(id,T),entered:false};
-  if(t==='debt')return {v:Math.max(0,r2((s.start||0)-(s.paid||0)-cum(id,T))),entered:false};
+  if(t==='investments')return {v:r2((s.open||0)+cum(id,T)),entered:false};
+  if(t==='debt')return {v:Math.max(0,r2((s.start||0)-cum(id,T))),entered:false};
   return {v:0,entered:false};
 }
 function renderNW(){
@@ -527,8 +533,9 @@ function archivedCard(){
   ${a.map(({s,T})=>`<div class="rule"><div><b>${esc(s.name)}</b> <span class="small muted">${T.label}. Shown through ${esc(mLabel(s.until))}</span></div><button class="btn ghost" data-a="restorecat" data-v="${s.id}">Restore</button></div>`).join('')}</div>`;
 }
 function renderCats(){
-  const extras={savings:[['open','Starting balance'],['goal','Goal']],investments:[['room','Total room now'],['limit','New room yearly']],debt:[['start','Starting balance'],['paid','Paid so far']]};
-  const hints={savings:'Starting balance is what you had saved before Oct 2026. A goal is optional.',investments:'Total room now is everything you can contribute as of Oct 2026, including unused room carried over from past years. New room yearly is what gets added each January. Leave both blank for accounts without a limit.',debt:'Starting balance is the full loan amount. Paid so far is how much you had already paid off before Oct 2026. Payments you log under Debt are added on top each month.'};
+  const extras={savings:[['open','Starting balance'],['goal','Goal']],investments:[['open','Total invested'],['room','Remaining contribution room']],debt:[['start','Current balance']]};
+  const hints={savings:'Starting balance is what you had saved before Oct 2026. A goal is optional.',investments:'Total invested is what the account holds today. Remaining contribution room is how much more you are allowed to contribute as of Oct 2026. Leave room blank for accounts without a limit.',debt:'Current balance is what you owe today. Payments you log under Debt are subtracted from it each month.'
+  };
   const noun={income:'income source',bills:'bill',expenses:'expense',savings:'savings goal',investments:'investment account',debt:'loan'};
   const xb=s=>`<button class="xbtn" data-a="delcat" data-v="${s.id}" aria-label="Remove ${esc(s.name)}">&times;</button>`;
   const nameIn=s=>`<input type="text" aria-label="Name" value="${esc(s.name)}" data-c="rename" data-v="${s.id}">`;
@@ -589,7 +596,7 @@ document.addEventListener('click',e=>{
   else if(a==='clearday'){selDay=null;render()}
   else if(a==='deltx'){const dt=S.tx.find(t=>t.id===v);if(dt&&dt.ruleId)S.skip[dt.ruleId+'|'+dt.date]=true;S.tx=S.tx.filter(t=>t.id!==v);save();render();toast('Transaction deleted')}
   else if(a==='copyplan'){const p=MONTHS[MONTHS.indexOf(cur)-1];S.plan[cur]=Object.assign({},S.plan[p]||{});save();render();toast('Copied plan from '+mLabel(p))}
-  else if(a==='estimate'){QUARTERS.forEach(x=>{S.nw[x.q]=S.nw[x.q]||{};S.cats.savings.forEach(s=>S.nw[x.q][s.id]=r2((s.open||0)+cum(s.id,x.end)));S.cats.investments.forEach(s=>S.nw[x.q][s.id]=cum(s.id,x.end));S.cats.debt.forEach(s=>S.nw[x.q][s.id]=Math.max(0,r2((s.start||0)-cum(s.id,x.end))))});save();render();toast('Filled in from your transactions')}
+  else if(a==='estimate'){QUARTERS.forEach(x=>{S.nw[x.q]=S.nw[x.q]||{};S.cats.savings.forEach(s=>S.nw[x.q][s.id]=r2((s.open||0)+cum(s.id,x.end)));S.cats.investments.forEach(s=>S.nw[x.q][s.id]=r2((s.open||0)+cum(s.id,x.end)));S.cats.debt.forEach(s=>S.nw[x.q][s.id]=Math.max(0,r2((s.start||0)-cum(s.id,x.end))))});save();render();toast('Filled in from your transactions')}
   else if(a==='addcat'){const inp=document.getElementById('add-'+v),n=(inp.value||'').trim();if(!n){inp.focus();return}S.cats[v].push({id:uid(),name:n});save();render();toast('Added '+n)}
   else if(a==='delcat'){
     const s=subOf(v),k=typeOf(v);

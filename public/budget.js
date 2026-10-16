@@ -38,23 +38,8 @@ function seed(){
     investments:[mk('n1','Retirement account',{open:20000,room:12000}),mk('n3','Brokerage account'),mk('n4','Pension')],
     debt:[mk('d1','Loan',{start:5000})]
   };
-  const base={i1:4200,b1:1200,b4:200,b5:60,b6:40,b8:30,e1:50,e2:400,e3:150,e4:100,e5:50,e13:40,s1:300,s2:100,n1:250,d1:150};
-  const plan={};MONTHS.forEach(m=>plan[m]=Object.assign({},base));
-  const t=(d,desc,amt,sub)=>({id:uid(),date:'2026-11-'+pad(d),desc,amt,sub});
-  const tx=[
-    t(1,'Paycheque',3500,'i1'),t(1,'Rent',1200,'b1'),t(1,'Phone',60,'b5'),t(2,'Coffee',5.5,'e13'),
-    t(3,'Groceries',86.4,'e2'),t(3,'Gas',48,'e1'),t(4,'Streaming',16,'b6'),t(5,'Dinner out',64,'e3'),
-    t(7,'Groceries',72.15,'e2'),t(7,'Coffee',6,'e13'),t(8,'Utilities',178.2,'b4'),t(9,'Gym',30,'b8'),
-    t(10,'New jeans',89,'e4'),t(11,'Emergency fund',300,'s1'),t(12,'Groceries',95.8,'e2'),t(13,'Lunch with friends',38,'e3'),
-    t(14,'Loan payment',150,'d1'),t(15,'Retirement contribution',250,'n1'),t(16,'Haircut',45,'e5'),t(17,'Groceries',61.3,'e2'),t(18,'Coffee',5.5,'e13')
-  ];
-  /* demo activity for Dec 2026 to Dec 2027 so every quarter looks different */
-  MONTHS.filter(m=>m>='2026-12').forEach((mk,i)=>{const T=(d,desc,amt,sub)=>tx.push({id:uid(),date:mk+'-'+pad(d),desc,amt,sub});
-    T(1,'Paycheque',3500,'i1');T(1,'Rent',1200,'b1');T(2,'Phone',60,'b5');T(9,'Utilities',170+(i*37)%40,'b4');
-    T(8,'Groceries',330+(i*53)%60,'e2');T(12,'Dinner out',70+(i*29)%50,'e3');T(15,'Emergency fund',300,'s1');T(15,'Travel fund',100,'s2');
-    T(16,'Gift budget',50,'s3');T(17,'Retirement contribution',250,'n1');T(18,'Loan payment',150,'d1')});
-  const bal={'2026-11':{n1:2400,cash:1800},'2026-12':{n1:3100,n3:4200,n4:18500,cash:2200},'2027-03':{n1:4000,n3:4650,n4:19200,cash:2600},'2027-06':{n1:5200,n3:4900,n4:19900,cash:3100},'2027-09':{n1:5900,n3:5600,n4:20600,cash:3000},'2027-12':{n1:7100,n3:6300,n4:21400,cash:3700}};
-  const rules=[{id:'r1',sub:'b3',amt:285,freq:'biweekly',start:'2026-10-02',end:'',label:'Car payment',since:''},{id:'r2',sub:'b2',amt:200,freq:'monthly',start:'2026-10-15',end:'',label:'Student loan',since:''}];
+  const plan={};MONTHS.forEach(m=>plan[m]={});
+  const tx=[],bal={},rules=[];
   return {v:2,cats,plan,tx,nw:{},bal,rules,skip:{}};
 }
 function load(){return window.__BT_INITIAL||null}
@@ -235,7 +220,7 @@ function shell(inner){
     <div class="who"><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
   </div></header>
   <main>${inner}
-    <div class="foot"><button class="btn ghost" data-a="reset">Restore sample data</button><button class="btn ghost" data-a="clear">${wipeArmed?'Click again to clear all numbers':'Start fresh (clear sample numbers)'}</button><span class="small muted">Covers Oct 2026 to Dec 2027.</span></div>
+    <div class="foot"><button class="btn ghost" data-a="clear">${wipeArmed?'Click again to clear all numbers':'Clear all numbers'}</button><span class="small muted">Covers Oct 2026 to Dec 2027.</span></div>
   </main>
   ${tab==='month'&&isMobile()?(sheetOpen?sheetHtml():`<button class="fab" data-a="opensheet" aria-label="Add a transaction"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>`):''}`;
 }
@@ -613,7 +598,6 @@ document.addEventListener('click',e=>{
   else if(a==='ovtoggle'){const k=v;let s=(S.ovSel&&S.ovSel.length?S.ovSel:['income','bills','expenses']).slice();s=s.includes(k)?s.filter(x=>x!==k):s.concat(k);if(s.length){S.ovSel=s;save();render()}}
   else if(a==='togglesetup'){S.hideSetup=!S.hideSetup;if(S.hideSetup)tab='month';save();render();window.scrollTo(0,0);
     toast(S.hideSetup?'Set-Up tab hidden. Find it next to Sign out.':'Set-Up is back in the tabs')}
-  else if(a==='reset'){const pal=S.palette,hs=S.hideSetup;S=seed();S.palette=pal;S.hideSetup=hs;cur=MONTHS.includes(todayStr().slice(0,7))?todayStr().slice(0,7):MONTHS[0];selDay=null;save();render();toast('Sample data restored')}
   else if(a==='clear'){
     if(!wipeArmed){wipeArmed=true;render();clearTimeout(window.__w);window.__w=setTimeout(()=>{wipeArmed=false;render()},6000);return}
     wipeArmed=false;S.tx=[];S.bal={};S.nw={};S.plan={};S.rules=[];S.skip={};editRuleId=null;ruleOpen=false;rd=newRuleDraft();MONTHS.forEach(m=>S.plan[m]={});

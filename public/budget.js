@@ -322,10 +322,10 @@ function calendar(c){
     let cls='day',style='',lab='';
     const sd=schedDay[ds],dd=fixedDay[ds];
     if(!tracked){cls+=' future';if(sd&&sd.spend>0){cls+=' sch';lab=money(sd.spend)}}
-    else if(v===0){cls+=' none';lab='no spend'}
+    else if(v===0){cls+=' none'}
     else{const p=Math.round(18+57*(v/mx));style=`background:color-mix(in srgb,var(--amber) ${p}%,var(--surface));border-color:transparent`;lab=money(v)}
     if(ds===draft.date)cls+=' active';
-    cells+=`<button class="${cls}" style="${style}" data-a="day" data-v="${ds}" aria-pressed="${selDay===ds}" aria-label="${mLabel(cur).split(' ')[0]} ${d}, ${lab||'no data yet'}${dd?', bills and debt payments '+money(dd):''}${sd?', scheduled: '+esc(sd.items.join(', ')):''}"><span class="n">${d}</span>${sd?`<span class="repwrap tr" title="Scheduled: ${esc(sd.items.join(', '))}">${REP}</span>`:''}${dd?`<span class="bot"><span class="m">${lab}</span><span class="dm" title="Bills and debt payments ${money(dd)}"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><b>${money(dd)}</b></span></span>`:`<span class="m">${lab}</span>`}</button>`;
+    cells+=`<button class="${cls}" style="${style}" data-a="day" data-v="${ds}" aria-pressed="${selDay===ds}" aria-label="${mLabel(cur).split(' ')[0]} ${d}, ${lab||(cls.includes(' none')?'no spend':'no data yet')}${dd?', bills and debt payments '+money(dd):''}${sd?', scheduled: '+esc(sd.items.join(', ')):''}"><span class="n">${d}</span>${sd?`<span class="repwrap tr" title="Scheduled: ${esc(sd.items.join(', '))}">${REP}</span>`:''}${dd?`<span class="bot"><span class="m">${lab}</span><span class="dm" title="Bills and debt payments ${money(dd)}"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><b>${money(dd)}</b></span></span>`:`<span class="m">${lab}</span>`}</button>`;
   }
   return `<div class="card" id="cal"><h2>Daily spending</h2><div class="cal">${cells}</div></div>`;
 }

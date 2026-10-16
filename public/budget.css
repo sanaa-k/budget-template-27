@@ -305,7 +305,7 @@ table{width:100%;border-collapse:collapse}
 .foot{margin-top:28px;padding-top:14px;border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 @media (prefers-reduced-motion:no-preference){.day,.btn,.tab{transition:background .12s,filter .12s}}
 
-.nwhero{font-size:40px;font-weight:700;letter-spacing:-.02em;line-height:1.1;margin:0 0 6px}
+.nwhero{font-family:var(--display);font-size:34px;font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:0 0 6px}
 .qoq .qc{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .qoq .qgood{color:var(--forest);font-weight:600}
 .qoq .qbad{color:var(--amber);font-weight:600}

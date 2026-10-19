@@ -312,7 +312,6 @@ function calendar(c){
   const first=new Date(y,m-1,1).getDay(),n=new Date(y,m,0).getDate();
   const show=calShow(),exOnly=show.length===1&&show[0]==='expenses';
   const daily={};c.tx.forEach(t=>{if(show.includes(typeOf(t.sub)))daily[t.date]=r2((daily[t.date]||0)+t.amt)});
-  const fixedDay={};c.tx.forEach(t=>{const k=typeOf(t.sub);if((k==='debt'||k==='bills')&&!show.includes(k))fixedDay[t.date]=r2((fixedDay[t.date]||0)+t.amt)});
   const lastTx=c.tx.reduce((a,t)=>t.date>a?t.date:a,'0000');
   const asOf=todayStr()>lastTx?todayStr():lastTx;
   const mx=Math.max(1,...Object.values(daily));
@@ -322,7 +321,7 @@ function calendar(c){
   for(let d=1;d<=n;d++){
     const ds=cur+'-'+pad(d),v=daily[ds]||0,tracked=ds<=asOf;
     let cls='day',style='',lab='';
-    const sd=schedDay[ds],dd=fixedDay[ds];
+    const sd=schedDay[ds],dd=0;
     if(!tracked){cls+=' future';if(sd&&sd.spend>0){cls+=' sch';lab=money(sd.spend)}}
     else if(v===0){cls+=' none'}
     else{const p=Math.round(18+57*(v/mx));style=`background:color-mix(in srgb,var(--amber) ${p}%,var(--surface));border-color:transparent`;lab=money(v)}

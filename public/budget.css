@@ -311,3 +311,8 @@ table{width:100%;border-collapse:collapse}
 .qoq .qbad{color:var(--amber);font-weight:600}
 .qoq th{text-align:right}
 .qoq th:first-child{text-align:left}
+
+.calfilter{display:flex;align-items:center;flex-wrap:wrap;gap:8px 10px;margin:10px 0 2px}
+.calfilter .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0}
+.calfilter .chip{padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:13.5px;cursor:pointer}
+.calfilter .chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--surface2);font-weight:600}

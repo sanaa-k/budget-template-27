@@ -613,6 +613,12 @@ document.addEventListener('click',e=>{
     Object.keys(S.cats).forEach(k=>S.cats[k].forEach(c=>{['goal','open','start','limit','room'].forEach(f=>{if(c[f]!==undefined)c[f]=0})}));
     save();render();toast('Cleared. Your line names are kept.')}
 });
+/* keep keyboard focus moving with Tab when a changed field re-draws the page */
+let pendingTab=null;
+const focusables=()=>[...document.querySelectorAll('input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled]),a[href]')].filter(el=>el.offsetParent!==null||el===document.activeElement);
+document.addEventListener('keydown',e=>{if(e.key!=='Tab'||e.ctrlKey||e.altKey||e.metaKey)return;const f=focusables(),i=f.indexOf(document.activeElement);if(i<0)return;pendingTab={i,dir:e.shiftKey?-1:1};clearTimeout(pendingTab.t);pendingTab.t=setTimeout(()=>{pendingTab=null},400)},true);
+const __render=render;
+render=function(){const sy=window.scrollY;__render();if(pendingTab){const p=pendingTab;setTimeout(()=>{if(pendingTab!==p)return;const ae=document.activeElement;if(!ae||ae===document.body){const el=focusables()[p.i+p.dir];if(el){el.focus({preventScroll:false});if(el.select)try{el.select()}catch(x){}}}pendingTab=null},0)}};
 document.addEventListener('change',e=>{
   const t=e.target,c=t.dataset.c;if(!c)return;
   if(c==='month'){cancelEdit();cur=t.value;selDay=null;render()}

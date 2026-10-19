@@ -291,7 +291,7 @@ function txCard(c){
 }
 function noSpendDays(c){
   const [y,m]=cur.split('-').map(Number),n=new Date(y,m,0).getDate(),spend={};
-  c.tx.forEach(t=>{if(typeOf(t.sub)==='expenses')spend[t.date]=1});
+  const nsk=nsShow();c.tx.forEach(t=>{if(nsk.includes(typeOf(t.sub)))spend[t.date]=1});
   const lastTx=c.tx.reduce((a,t)=>t.date>a?t.date:a,'0000'),asOf=todayStr()>lastTx?todayStr():lastTx;
   let tracked=0,none=0;
   for(let d=1;d<=n;d++){const ds=cur+'-'+pad(d);if(ds<=asOf){tracked++;if(!spend[ds])none++}}
@@ -304,14 +304,16 @@ function tiles(c){
   return `<div class="tiles compact">
    <div class="tile"><div class="l">What's Left${tip('t-left',"What's Left",`Planned income minus everything planned. So far: ${money(la)} left.`)}</div><div class="v ${lp<0?'bad':''}">${money(lp)}</div></div>
    <div class="tile"><div class="l">Savings rate${tip('t-rate','Savings rate','Savings and investments as a share of the income you have received this month.')}</div><div class="v">${sr==null?'–':Math.round(sr*100)+'%'}</div></div>
-   <div class="tile"><div class="l">No-spend days${tip('t-nospend','No-spend days',ns.tracked?`Days so far this month with no discretionary spending (${ns.none} of ${ns.tracked}). Only Expenses count against a day. Bills, debt payments, savings and investments don't.`:'Days with no discretionary spending. Counts start once the month begins.')}</div><div class="v">${ns.tracked?ns.none:'–'}</div></div></div>`;
+   <div class="tile"><div class="l">No-spend days${tip('t-nospend','No-spend days',ns.tracked?`Days so far this month with nothing logged in ${nsWords()} (${ns.none} of ${ns.tracked}). You can change what counts under the calendar.`:'Days with nothing logged in the categories you choose under the calendar. Counts start once the month begins.')}</div><div class="v">${ns.tracked?ns.none:'–'}</div></div></div>`;
 }
+function nsWords(){const L={expenses:'Expenses',bills:'Bills',debt:'Debt Payments',savings:'Savings',investments:'Investments'},k=nsShow().map(x=>L[x]);return k.length>1?k.slice(0,-1).join(', ')+' or '+k[k.length-1]:k[0]}
+function nsShow(){const v=S.nsShow;return v&&v.length?v:['expenses']}
 function calShow(){const v=S.calShow;return v&&v.length?v:['expenses']}
 function calendar(c){
   const [y,m]=cur.split('-').map(Number);
   const first=new Date(y,m-1,1).getDay(),n=new Date(y,m,0).getDate();
   const show=calShow(),exOnly=show.length===1&&show[0]==='expenses';
-  const daily={};c.tx.forEach(t=>{if(show.includes(typeOf(t.sub)))daily[t.date]=r2((daily[t.date]||0)+t.amt)});
+  const daily={},nsDay={},nsk0=nsShow();c.tx.forEach(t=>{if(show.includes(typeOf(t.sub)))daily[t.date]=r2((daily[t.date]||0)+t.amt);if(nsk0.includes(typeOf(t.sub)))nsDay[t.date]=1});
   const lastTx=c.tx.reduce((a,t)=>t.date>a?t.date:a,'0000');
   const asOf=todayStr()>lastTx?todayStr():lastTx;
   const mx=Math.max(1,...Object.values(daily));
@@ -323,7 +325,7 @@ function calendar(c){
     let cls='day',style='',lab='';
     const sd=schedDay[ds],dd=0;
     if(!tracked){cls+=' future';if(sd&&sd.spend>0){cls+=' sch';lab=money(sd.spend)}}
-    else if(v===0){cls+=' none'}
+    else if(v===0){if(!nsDay[ds])cls+=' none'}
     else{const p=Math.round(18+57*(v/mx));style=`background:color-mix(in srgb,var(--amber) ${p}%,var(--surface));border-color:transparent`;lab=money(v)}
     if(ds===draft.date)cls+=' active';
     cells+=`<button class="${cls}" style="${style}" data-a="day" data-v="${ds}" aria-pressed="${selDay===ds}" aria-label="${mLabel(cur).split(' ')[0]} ${d}, ${lab||(cls.includes(' none')?(exOnly?'no spend':'nothing logged'):'no data yet')}${dd?', bills and debt payments '+money(dd):''}${sd?', scheduled: '+esc(sd.items.join(', ')):''}"><span class="n">${d}</span>${sd?`<span class="repwrap tr" title="Scheduled: ${esc(sd.items.join(', '))}">${REP}</span>`:''}${dd?`<span class="bot"><span class="m">${lab}</span><span class="dm" title="Bills and debt payments ${money(dd)}"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><b>${money(dd)}</b></span></span>`:`<span class="m">${lab}</span>`}</button>`;
@@ -331,7 +333,11 @@ function calendar(c){
   const CK=[['expenses','Expenses'],['income','Income'],['bills','Bills'],['savings','Savings'],['investments','Investments'],['debt','Debt Payments']];
   const chips=CK.map(([k,l])=>`<button type="button" class="chip" aria-pressed="${show.includes(k)}" data-a="caltoggle" data-v="${k}">${l}</button>`).join('');
   const ctip=tipHtml({k:'cal-show',label:'Calendar view',tip:"To see your discretionary spending, show Expenses only. Switch on Income, Bills, Savings, Investments or Debt Payments to see your overall cash flow instead."},'','About the calendar view');
-  return `<div class="card" id="cal"><h2>${exOnly?'Daily spending':'Daily activity'}</h2><div class="calfilter"><span class="small muted">Show</span>${ctip}<div class="chips">${chips}</div></div><div class="cal">${cells}</div></div>`;
+  const NK=[['expenses','Expenses'],['bills','Bills'],['debt','Debt Payments'],['savings','Savings'],['investments','Investments']],nsk=nsShow();
+  const nsChips=NK.map(([k,l])=>`<button type="button" class="chip" aria-pressed="${nsk.includes(k)}" data-a="nstoggle" data-v="${k}">${l}</button>`).join('');
+  const nstip=tipHtml({k:'ns-def',label:'No-spend day',tip:"By default a no-spend day only needs to be free of Expenses, so fixed payments like bills don't break it. Add Bills, Debt Payments, Savings or Investments for a stricter definition."},'','About no-spend days');
+  const nsRow=`<div class="calfilter"><span class="small muted">No-spend day means none of</span>${nstip}<div class="chips">${nsChips}</div></div>`;
+  return `<div class="card" id="cal"><h2>${exOnly?'Daily spending':'Daily activity'}</h2><div class="calfilter"><span class="small muted">Show</span>${ctip}<div class="chips">${chips}</div></div>${nsRow}<div class="cal">${cells}</div></div>`;
 }
 function charts(c){
   const rows=['bills','expenses','savings','investments','debt'];
@@ -603,6 +609,7 @@ document.addEventListener('click',e=>{
     if(hist){const cm=todayStr().slice(0,7);s.archived=true;s.until=cm<MONTHS[0]?MONTHS[0]:(cm>MONTHS[MONTHS.length-1]?MONTHS[MONTHS.length-1]:cm);save();render();toast(`"${s.name}" archived. Past months keep their data.`);return}
     S.cats[k]=S.cats[k].filter(c=>c.id!==v);save();render();toast('Removed')}
   else if(a==='restorecat'){const s=subOf(v);if(s){delete s.archived;delete s.until;save();render();toast(`"${s.name}" is back`)}}
+  else if(a==='nstoggle'){let x=nsShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.nsShow=x;save();render()}}
   else if(a==='caltoggle'){let x=calShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.calShow=x;save();render()}}
   else if(a==='ovtoggle'){const k=v;let s=(S.ovSel&&S.ovSel.length?S.ovSel:['income','bills','expenses']).slice();s=s.includes(k)?s.filter(x=>x!==k):s.concat(k);if(s.length){S.ovSel=s;save();render()}}
   else if(a==='togglesetup'){S.hideSetup=!S.hideSetup;if(S.hideSetup)tab='month';save();render();window.scrollTo(0,0);

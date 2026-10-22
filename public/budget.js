@@ -313,9 +313,13 @@ function tiles(c){
   return `<div class="tiles compact">
    <div class="tile"><div class="l">What's Left${tip('t-left',"What's Left",`Income you have received this month minus everything you have logged so far: bills, expenses, savings, investments and debt payments. The planned figure underneath is what you expected when you set the month up.`)}</div><div class="v ${la<0?'bad':''}">${money(la)}</div><div class="small muted">Planned: ${money(lp)}</div></div>
    <div class="tile"><div class="l">Savings rate${tip('t-rate','Savings rate','Savings and investments as a share of the income you have received this month.')}</div><div class="v">${sr==null?'–':Math.round(sr*100)+'%'}</div></div>
-   <div class="tile"><div class="l">No-spend days${tip('t-nospend','No-spend days',ns.tracked?`Days so far this month with nothing logged in ${nsWords()} (${ns.none} of ${ns.tracked}). You can change what counts under the calendar.`:'Days with nothing logged in the categories you choose under the calendar. Counts start once the month begins.')}</div><div class="v">${ns.tracked?ns.none:'–'}</div></div></div>`;
+   <div class="tile nstile"><div class="l">No-spend days${tip('t-nospend','No-spend days',ns.tracked?`Days so far this month with nothing logged in ${nsWords()} (${ns.none} of ${ns.tracked}). Use the gear to change what counts.`:'Days with nothing logged in the categories you choose with the gear. Counts start once the month begins.')}<button type="button" class="nsgear" data-a="nsopen" aria-label="Change what counts as a no-spend day" aria-expanded="${nsOpen}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button></div><div class="v">${ns.tracked?ns.none:'–'}</div>${nsPop()}</div></div>`;
 }
 function nsWords(){const L={expenses:'Expenses',bills:'Bills',debt:'Debt Payments',savings:'Savings',investments:'Investments'},k=nsShow().map(x=>L[x]);return k.length>1?k.slice(0,-1).join(', ')+' or '+k[k.length-1]:k[0]}
+let nsOpen=false;
+function nsPop(){
+  if(!nsOpen)return '';const NK=[['expenses','Expenses'],['bills','Bills'],['debt','Debt Payments'],['savings','Savings'],['investments','Investments']],k=nsShow();
+  return `<div class="nspop" role="dialog" aria-label="What counts as a no-spend day"><b>A no-spend day has none of:</b><div class="chips">${NK.map(([x,l])=>`<button type="button" class="chip" aria-pressed="${k.includes(x)}" data-a="nstoggle" data-v="${x}">${l}</button>`).join('')}</div><p class="small muted">By default only Expenses count, so fixed payments like bills don't break a no-spend day. Add more for a stricter definition.</p></div>`}
 function nsShow(){const v=S.nsShow;return v&&v.length?v:['expenses']}
 function calShow(){const v=S.calShow;return v&&v.length?v:['expenses']}
 function calendar(c){
@@ -342,11 +346,7 @@ function calendar(c){
   const CK=[['expenses','Expenses'],['income','Income'],['bills','Bills'],['savings','Savings'],['investments','Investments'],['debt','Debt Payments']];
   const chips=CK.map(([k,l])=>`<button type="button" class="chip" aria-pressed="${show.includes(k)}" data-a="caltoggle" data-v="${k}">${l}</button>`).join('');
   const ctip=tipHtml({k:'cal-show',label:'Calendar view',tip:"To see your discretionary spending, show Expenses only. Switch on Income, Bills, Savings, Investments or Debt Payments to see your overall cash flow instead."},'','About the calendar view');
-  const NK=[['expenses','Expenses'],['bills','Bills'],['debt','Debt Payments'],['savings','Savings'],['investments','Investments']],nsk=nsShow();
-  const nsChips=NK.map(([k,l])=>`<button type="button" class="chip" aria-pressed="${nsk.includes(k)}" data-a="nstoggle" data-v="${k}">${l}</button>`).join('');
-  const nstip=tipHtml({k:'ns-def',label:'No-spend day',tip:"By default a no-spend day only needs to be free of Expenses, so fixed payments like bills don't break it. Add Bills, Debt Payments, Savings or Investments for a stricter definition."},'','About no-spend days');
-  const nsRow=`<div class="calfilter"><span class="small muted">No-spend day means none of</span>${nstip}<div class="chips">${nsChips}</div></div>`;
-  return `<div class="card" id="cal"><h2>${exOnly?'Daily spending':'Daily activity'}</h2><div class="calfilter"><span class="small muted">Show</span>${ctip}<div class="chips">${chips}</div></div>${nsRow}<div class="cal">${cells}</div></div>`;
+  return `<div class="card" id="cal"><h2>${exOnly?'Daily spending':'Daily activity'}</h2><div class="calfilter"><span class="small muted">Show</span>${ctip}<div class="chips">${chips}</div></div><div class="cal">${cells}</div></div>`;
 }
 function charts(c){
   const rows=['bills','expenses','savings','investments','debt'];
@@ -629,6 +629,7 @@ function render(){
 
 /* ---------- events ---------- */
 document.addEventListener('click',e=>{
+  if(nsOpen&&!e.target.closest('.nspop,[data-a="nsopen"]')){nsOpen=false;render()}
   const tb=e.target.closest('.tip');
   document.querySelectorAll('.tipwrap.open').forEach(w=>{if(!tb||w!==tb.parentElement)w.classList.remove('open')});
   if(tb){tb.parentElement.classList.toggle('open');requestAnimationFrame(()=>fitTip(tb.parentElement));return}
@@ -666,6 +667,7 @@ document.addEventListener('click',e=>{
     if(hist){const cm=todayStr().slice(0,7);s.archived=true;s.until=cm<MONTHS[0]?MONTHS[0]:(cm>MONTHS[MONTHS.length-1]?MONTHS[MONTHS.length-1]:cm);save();render();toast(`"${s.name}" archived. Past months keep their data.`,1);return}
     S.cats[k]=S.cats[k].filter(c=>c.id!==v);save();render();toast('Removed',1)}
   else if(a==='restorecat'){const s=subOf(v);if(s){delete s.archived;delete s.until;save();render();toast(`"${s.name}" is back`)}}
+  else if(a==='nsopen'){nsOpen=!nsOpen;render()}
   else if(a==='nstoggle'){let x=nsShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.nsShow=x;save();render()}}
   else if(a==='impchoose'){const f=document.getElementById('imp-file');if(f)f.click()}
   else if(a==='impcancel'){impPrev=null;impErr='';render()}

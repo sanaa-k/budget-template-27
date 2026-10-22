@@ -442,7 +442,7 @@ function renderOverview(){
   }
   const grid=all.map(({m})=>({m,vals:series.map(x=>x.val(m))}));
   const act=series,mxv=Math.max(1,...grid.flatMap(g=>g.vals));
-  const mini=grid.map(({m,vals})=>`<div class="c"><div class="bars">${series.map((x,i)=>`<i style="height:${vals[i]/mxv*100}%;background:${x.col}" title="${esc(mLabel(m))} ${esc(x.l)} ${money(vals[i])}" aria-label="${esc(mLabel(m))} ${esc(x.l)} ${money(vals[i])}"></i>`).join('')}</div><span class="lb">${mShort(m)}</span></div>`).join('');
+  const mini=grid.map(({m,vals},mi)=>`<div class="c" tabindex="0"><div class="ttip ${mi<3?'tl':mi>=grid.length-3?'tr':''}"><b>${esc(mLabel(m))}</b>${series.map((x,i)=>`<div><i style="background:${x.col}"></i><span>${esc(x.l)}</span><em>${money(vals[i])}</em></div>`).join('')}</div><div class="bars">${series.map((x,i)=>`<i style="height:${vals[i]/mxv*100}%;background:${x.col}" aria-label="${esc(mLabel(m))} ${esc(x.l)} ${money(vals[i])}"></i>`).join('')}</div><span class="lb">${mShort(m)}</span></div>`).join('');
   const trendW=Math.max(0,all.length*(act.length*10+10));
   const yearUsed=(id,y)=>r2(S.tx.filter(t=>t.sub===id&&t.date.startsWith(String(y))).reduce((a,t)=>a+t.amt,0));
   const room=s=>s.room||0;

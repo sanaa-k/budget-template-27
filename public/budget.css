@@ -316,3 +316,7 @@ table{width:100%;border-collapse:collapse}
 .calfilter .chips{display:flex;flex-wrap:wrap;gap:6px;margin:0}
 .calfilter .chip{padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:13.5px;cursor:pointer}
 .calfilter .chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--surface2);font-weight:600}
+
+.toastbtn{margin-left:12px;background:none;border:0;border-bottom:1px solid currentColor;color:inherit;font:inherit;font-weight:700;padding:0;cursor:pointer}
+.undobtn{font-size:18px;line-height:1;text-decoration:none;padding:2px 4px}
+.undobtn[disabled]{opacity:.35;cursor:default}

@@ -25,7 +25,7 @@ const mLabel=mk=>{const [y,m]=mk.split('-');return MNAME[+m-1]+' '+y};
 const mShort=mk=>MNAME[+mk.split('-')[1]-1].slice(0,3);
 const uid=()=>'c'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
-function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2200)}
+function toast(msg,undoable){const t=document.getElementById('toast');t.textContent=msg;if(undoable){const b=document.createElement('button');b.type='button';b.className='toastbtn';b.dataset.a='undo';b.textContent='Undo';t.appendChild(b)}t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,undoable?6000:2200)}
 
 /* ---------- data ---------- */
 function seed(){
@@ -43,7 +43,15 @@ function seed(){
   return {v:2,cats,plan,tx,nw:{},bal,rules,skip:{}};
 }
 function load(){return window.__BT_INITIAL||null}
-function save(){try{if(window.__BT_SAVE)window.__BT_SAVE(S)}catch(e){}}
+function persist(){try{if(window.__BT_SAVE)window.__BT_SAVE(S)}catch(e){}}
+/* undo / redo: snapshots of the budget (view preferences are not undone) */
+const VIEWK=['palette','hideSetup','setupDone','calShow','nsShow','ovSel'];
+let undoStack=[],redoStack=[],lastSnap=null;
+const snapOf=o=>{const c=Object.assign({},o);VIEWK.forEach(k=>delete c[k]);return JSON.stringify(c)};
+function save(){try{const ns=snapOf(S);if(lastSnap===null)lastSnap=ns;else if(ns!==lastSnap){undoStack.push(lastSnap);if(undoStack.length>100)undoStack.shift();redoStack=[];lastSnap=ns}}catch(e){}persist()}
+function applySnap(sn){const v={};VIEWK.forEach(k=>{if(S[k]!==undefined)v[k]=S[k]});S=Object.assign(JSON.parse(sn),v);lastSnap=sn;persist();try{cancelEdit()}catch(e){}render()}
+function undo(){if(!undoStack.length){toast('Nothing to undo');return}redoStack.push(snapOf(S));applySnap(undoStack.pop());toast('Undone')}
+function redo(){if(!redoStack.length){toast('Nothing to redo');return}undoStack.push(snapOf(S));applySnap(redoStack.pop());toast('Redone')}
 function blank(){
   const b=seed();b.tx=[];b.bal={};b.nw={};b.plan={};b.rules=[];b.skip={};MONTHS.forEach(m=>b.plan[m]={});
   Object.keys(b.cats).forEach(k=>b.cats[k].forEach(c=>{['goal','open','start','limit','room'].forEach(f=>{if(c[f]!==undefined)c[f]=0})}));
@@ -65,6 +73,7 @@ function migrate3(){
   S.v=2;save();
 })();
 migrate3();
+lastSnap=snapOf(S);
 
 /* ---------- recurring items ---------- */
 const RANGE_FROM=MONTHS[0]+'-01', RANGE_TO=MONTHS[MONTHS.length-1]+'-31';
@@ -217,7 +226,7 @@ function shell(inner){
     <div class="brand">Budget Template</div>
     <nav class="tabs" aria-label="Sections">${t.map(([k,l])=>`<button class="tab" data-a="tab" data-v="${k}" ${tab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>
     <div class="swatches" role="group" aria-label="Colour scheme">${PALETTES.map(p=>`<button class="sw-btn" style="background:${p.c}" data-a="palette" data-v="${p.k}" aria-label="${p.n} colour scheme" title="${p.n}" aria-pressed="${(S.palette||'forest')===p.k}"></button>`).join('')}</div>
-    <div class="who"><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
+    <div class="who"><button class="linkbtn undobtn" data-a="undo" aria-label="Undo" title="Undo (Ctrl+Z)" ${undoStack.length?'':'disabled'}>↶</button><button class="linkbtn undobtn" data-a="redo" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" ${redoStack.length?'':'disabled'}>↷</button><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
   </div></header>
   <main>${inner}
     <div class="foot"><button class="btn ghost" data-a="clear">${wipeArmed?'This erases everything you entered. Click again to confirm':'Clear all numbers'}</button><span class="small muted">Covers Oct 2026 to Dec 2027.</span></div>
@@ -302,7 +311,7 @@ function tiles(c){
   const sr=inc>0?(c.g.savings.actual+c.g.investments.actual)/inc:null,ns=noSpendDays(c);
   const tip=(k,label,text)=>tipHtml({k,label,tip:text},'',`About ${label}`);
   return `<div class="tiles compact">
-   <div class="tile"><div class="l">What's Left${tip('t-left',"What's Left",`Planned income minus everything planned. So far: ${money(la)} left.`)}</div><div class="v ${lp<0?'bad':''}">${money(lp)}</div></div>
+   <div class="tile"><div class="l">What's Left${tip('t-left',"What's Left",`Income you have received this month minus everything you have logged so far: bills, expenses, savings, investments and debt payments. The planned figure underneath is what you expected when you set the month up.`)}</div><div class="v ${la<0?'bad':''}">${money(la)}</div><div class="small muted">Planned: ${money(lp)}</div></div>
    <div class="tile"><div class="l">Savings rate${tip('t-rate','Savings rate','Savings and investments as a share of the income you have received this month.')}</div><div class="v">${sr==null?'–':Math.round(sr*100)+'%'}</div></div>
    <div class="tile"><div class="l">No-spend days${tip('t-nospend','No-spend days',ns.tracked?`Days so far this month with nothing logged in ${nsWords()} (${ns.none} of ${ns.tracked}). You can change what counts under the calendar.`:'Days with nothing logged in the categories you choose under the calendar. Counts start once the month begins.')}</div><div class="v">${ns.tracked?ns.none:'–'}</div></div></div>`;
 }
@@ -588,17 +597,17 @@ document.addEventListener('click',e=>{
   else if(a==='closesheet'){cancelEdit();render();const fb=document.querySelector('.fab');if(fb)fb.focus()}
   else if(a==='canceledit'){cancelEdit();render()}
   else if(a==='prev'||a==='next'){cancelEdit();const i=MONTHS.indexOf(cur)+(a==='next'?1:-1);if(MONTHS[i]){cur=MONTHS[i];selDay=null;render()}}
-  else if(a==='skip'){S.skip[b.dataset.r+'|'+v]=true;save();render();toast('Skipped. It won\'t post.')}
+  else if(a==='skip'){S.skip[b.dataset.r+'|'+v]=true;save();render();toast('Skipped. It won\'t post.',1)}
   else if(a==='gorec'){cancelEdit();tab='cats';render();setTimeout(()=>{const e=document.getElementById('rec');if(e)e.scrollIntoView({behavior:'smooth',block:'start'})},40)}
   else if(a==='editrule'){const r=S.rules.find(x=>x.id===v);if(r){editRuleId=v;ruleOpen=true;rd={type:typeOf(r.sub)||'bills',sub:r.sub,amt:String(r.amt),freq:r.freq,start:r.start,end:r.end||'',label:r.label||''};render();const e=document.getElementById('ruleform');if(e)e.scrollIntoView({behavior:'smooth',block:'center'})}}
   else if(a==='cancelrule'){editRuleId=null;ruleOpen=false;rd=newRuleDraft();render()}
   else if(a==='togglerule'){if(editRuleId){editRuleId=null;ruleOpen=false;rd=newRuleDraft()}else ruleOpen=!ruleOpen;render();if(ruleOpen){const f=document.getElementById('r-amt');if(f){f.scrollIntoView({behavior:'smooth',block:'center'});f.focus()}}}
-  else if(a==='delrule'){S.rules=S.rules.filter(r=>r.id!==v);Object.keys(S.skip).forEach(k=>{if(k.startsWith(v+'|'))delete S.skip[k]});if(editRuleId===v){editRuleId=null;rd=newRuleDraft()}save();render();toast('Removed. Payments already posted stay.')}
+  else if(a==='delrule'){S.rules=S.rules.filter(r=>r.id!==v);Object.keys(S.skip).forEach(k=>{if(k.startsWith(v+'|'))delete S.skip[k]});if(editRuleId===v){editRuleId=null;rd=newRuleDraft()}save();render();toast('Removed. Payments already posted stay.',1)}
   else if(a==='gomonth'){cancelEdit();S.setupDone=true;save();cur=v;tab='month';selDay=null;render();window.scrollTo(0,0)}
   else if(a==='day'){if(editId){draft.date=v;render();return}
     if(isMobile()){selDay=v;draft.date=v;sheetOpen=true;render();setTimeout(()=>{const f=document.getElementById('f-amt');if(f)f.focus()},60);return}selDay=selDay===v?null:v;draft.date=v;render()}
   else if(a==='clearday'){selDay=null;render()}
-  else if(a==='deltx'){const dt=S.tx.find(t=>t.id===v);if(dt&&dt.ruleId)S.skip[dt.ruleId+'|'+dt.date]=true;S.tx=S.tx.filter(t=>t.id!==v);save();render();toast('Transaction deleted')}
+  else if(a==='deltx'){const dt=S.tx.find(t=>t.id===v);if(dt&&dt.ruleId)S.skip[dt.ruleId+'|'+dt.date]=true;S.tx=S.tx.filter(t=>t.id!==v);save();render();toast('Transaction deleted',1)}
   else if(a==='copyplan'){const p=MONTHS[MONTHS.indexOf(cur)-1];S.plan[cur]=Object.assign({},S.plan[p]||{});save();render();toast('Copied plan from '+mLabel(p))}
   else if(a==='estimate'){QUARTERS.forEach(x=>{S.nw[x.q]=S.nw[x.q]||{};S.cats.savings.forEach(s=>S.nw[x.q][s.id]=r2((s.open||0)+cum(s.id,x.end)));S.cats.investments.forEach(s=>S.nw[x.q][s.id]=r2((s.open||0)+cum(s.id,x.end)));S.cats.debt.forEach(s=>S.nw[x.q][s.id]=Math.max(0,r2((s.start||0)-cum(s.id,x.end))))});save();render();toast('Filled in from your transactions')}
   else if(a==='addcat'){const inp=document.getElementById('add-'+v),n=(inp.value||'').trim();if(!n){inp.focus();return}S.cats[v].push({id:uid(),name:n});save();render();toast('Added '+n)}
@@ -606,10 +615,12 @@ document.addEventListener('click',e=>{
     const s=subOf(v),k=typeOf(v);
     if(S.rules.some(r=>r.sub===v)){toast(`"${s.name}" is used by a recurring item. Remove that first.`);return}
     const hist=S.tx.some(t=>t.sub===v)||Object.values(S.plan).some(pl=>pl&&pl[v]>0)||Object.values(S.bal).some(x=>x&&x[v]!==undefined)||Object.values(S.nw).some(q=>q&&q[v]>0);
-    if(hist){const cm=todayStr().slice(0,7);s.archived=true;s.until=cm<MONTHS[0]?MONTHS[0]:(cm>MONTHS[MONTHS.length-1]?MONTHS[MONTHS.length-1]:cm);save();render();toast(`"${s.name}" archived. Past months keep their data.`);return}
-    S.cats[k]=S.cats[k].filter(c=>c.id!==v);save();render();toast('Removed')}
+    if(hist){const cm=todayStr().slice(0,7);s.archived=true;s.until=cm<MONTHS[0]?MONTHS[0]:(cm>MONTHS[MONTHS.length-1]?MONTHS[MONTHS.length-1]:cm);save();render();toast(`"${s.name}" archived. Past months keep their data.`,1);return}
+    S.cats[k]=S.cats[k].filter(c=>c.id!==v);save();render();toast('Removed',1)}
   else if(a==='restorecat'){const s=subOf(v);if(s){delete s.archived;delete s.until;save();render();toast(`"${s.name}" is back`)}}
   else if(a==='nstoggle'){let x=nsShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.nsShow=x;save();render()}}
+  else if(a==='undo'){undo()}
+  else if(a==='redo'){redo()}
   else if(a==='caltoggle'){let x=calShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.calShow=x;save();render()}}
   else if(a==='ovtoggle'){const k=v;let s=(S.ovSel&&S.ovSel.length?S.ovSel:['income','bills','expenses']).slice();s=s.includes(k)?s.filter(x=>x!==k):s.concat(k);if(s.length){S.ovSel=s;save();render()}}
   else if(a==='togglesetup'){S.hideSetup=!S.hideSetup;if(S.hideSetup)tab='month';save();render();window.scrollTo(0,0);
@@ -629,6 +640,14 @@ document.addEventListener('keydown',e=>{if(e.key!=='Tab'||e.ctrlKey||e.altKey||e
   const f=focusables(),i=f.indexOf(document.activeElement);if(i<0)return;pendingTab={i,dir:e.shiftKey?-1:1};clearTimeout(pendingTab.t);pendingTab.t=setTimeout(()=>{pendingTab=null},400)},true);
 const __render=render;
 render=function(){const sy=window.scrollY;__render();if(pendingTab){const p=pendingTab;setTimeout(()=>{if(pendingTab!==p)return;const ae=document.activeElement;if(!ae||ae===document.body){const el=p.sel?document.querySelector(p.sel):focusables()[p.i+p.dir];if(el){el.focus({preventScroll:false});if(el.select)try{el.select()}catch(x){}}}pendingTab=null},0)}};
+let typing=false;
+document.addEventListener('focusin',()=>{typing=false});
+document.addEventListener('input',()=>{typing=true},true);
+document.addEventListener('keydown',e=>{
+  if(!(e.ctrlKey||e.metaKey)||e.altKey)return;const k=e.key.toLowerCase();if(k!=='z'&&k!=='y')return;
+  const t=e.target,field=t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT'||t.isContentEditable);
+  if(field&&typing)return; /* mid-typing: let the browser undo the text */
+  e.preventDefault();if(k==='y'||e.shiftKey)redo();else undo()});
 document.addEventListener('change',e=>{
   const t=e.target,c=t.dataset.c;if(!c)return;
   if(c==='month'){cancelEdit();cur=t.value;selDay=null;render()}

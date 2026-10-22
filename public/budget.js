@@ -45,7 +45,7 @@ function seed(){
 function load(){return window.__BT_INITIAL||null}
 function persist(){try{if(window.__BT_SAVE)window.__BT_SAVE(S)}catch(e){}}
 /* undo / redo: snapshots of the budget (view preferences are not undone) */
-const VIEWK=['palette','hideSetup','setupDone','calShow','nsShow','ovSel'];
+const VIEWK=['palette','hideSetup','setupDone','calShow','nsShow','ovSel','ovMode','ovType','ovCatSel'];
 let undoStack=[],redoStack=[],lastSnap=null;
 const snapOf=o=>{const c=Object.assign({},o);VIEWK.forEach(k=>delete c[k]);return JSON.stringify(c)};
 function save(){try{const ns=snapOf(S);if(lastSnap===null)lastSnap=ns;else if(ns!==lastSnap){undoStack.push(lastSnap);if(undoStack.length>100)undoStack.shift();redoStack=[];lastSnap=ns}}catch(e){}persist()}
@@ -388,6 +388,12 @@ function currentBal(id){
   if(t==='debt')return Math.max(0,r2((s.start||0)-allTime(id)));
   return 0;
 }
+const monthCol=i=>`hsl(${(i*53+160)%360} 28% 46%)`;
+function monthSegs(id,mk){return MONTHS.filter(m=>m<=mk).map(m=>({m,v:inMonth(id,m)})).filter(x=>x.v>0)}
+function segBar(total,segs,max,kind){
+  const w=v=>max>0?Math.max(0,Math.min(100,v/max*100)):0,sum=r2(segs.reduce((a,x)=>a+x.v,0)),base=Math.max(0,total-sum);
+  return `<div class="prog ${kind==='debt'?'debt':''}">${base>0?`<i class="base" style="width:${w(base)}%" title="Starting balance ${money(base)}"></i>`:''}${segs.map(x=>`<i class="seg" style="width:${w(x.v)}%;background:${monthCol(MONTHS.indexOf(x.m))}" title="${esc(mLabel(x.m))}: ${money(x.v)}"></i>`).join('')}</div>`;
+}
 function progBar(total,add,max,kind){
   const t=Math.max(0,Math.min(total,max)),a=Math.max(0,Math.min(add,t)),w=v=>max>0?Math.min(100,v/max*100):0;
   return `<div class="prog ${kind==='debt'?'debt':''}"><i class="base" style="width:${w(t-a)}%"></i><i style="width:${w(a)}%"></i></div>`;
@@ -400,10 +406,10 @@ function loanAt(s,mk){
 function goalsCard(){
   const sv=S.cats.savings.filter(s=>(s.goal||0)>0&&!s.archived),ln=S.cats.debt.filter(s=>(s.start||0)>0&&!s.archived);
   const sRows=sv.map(s=>{const saved=currentBal(s.id),pct=Math.min(100,saved/s.goal*100),m=inMonth(s.id,cur);
-    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(saved)} of ${money(s.goal)}</span></div>${progBar(saved,m,s.goal)}<div class="small muted">${money(Math.max(0,s.goal-saved))} to go${m>0?`. ${money(m)} added in ${esc(mShort(cur))}.`:''}</div></div>`}).join('');
+    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(saved)} of ${money(s.goal)}</span></div>${segBar(saved,monthSegs(s.id,cur),s.goal)}<div class="small muted">${money(Math.max(0,s.goal-saved))} to go</div></div>`}).join('');
   const lRows=ln.map(s=>{const L=loanAt(s,cur),rem=L.rem,paid=L.total,m=L.m;
-    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(Math.max(0,rem))} remaining</span></div>${progBar(paid,m,s.start,'debt')}<div class="small muted">${money(m)} paid ${cur===realMonth()?'this month':'in '+esc(mShort(cur))}, of ${money(s.start)}</div></div>`}).join('');
-  return `<div class="cols"><div class="card sav"><h2>Savings goals</h2>${sRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Starting balance</span><span><i class="sw" style="background:var(--forest)"></i>Added in ${esc(mShort(cur))}</span></div>`:''}${sRows||'<p class="empty">Set a goal amount on the Set-Up tab.</p>'}</div><div class="card dbt"><h2>Debt payoff</h2>${lRows?`<div class="legend" style="margin:4px 0 0"><span><i class="sw base"></i>Paid since Oct 2026</span><span><i class="sw debtc"></i>Paid in ${esc(mShort(cur))}</span></div>`:''}${lRows||'<p class="empty">Add a starting balance on the Set-Up tab.</p>'}</div></div>`;
+    return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(Math.max(0,rem))} remaining</span></div>${segBar(paid,monthSegs(s.id,cur),s.start,'debt')}<div class="small muted">${money(m)} paid ${cur===realMonth()?'this month':'in '+esc(mShort(cur))}, of ${money(s.start)}</div></div>`}).join('');
+  return `<div class="cols"><div class="card sav"><h2>Savings goals</h2>${sRows||'<p class="empty">Set a goal amount on the Set-Up tab.</p>'}</div><div class="card dbt"><h2>Debt payoff</h2>${lRows||'<p class="empty">Add a starting balance on the Set-Up tab.</p>'}</div></div>`;
 }
 function renderMonth(){
   const c=calc(cur);ensureDraft();
@@ -423,17 +429,27 @@ function renderOverview(){
     return `<tr><td><button class="linkbtn" style="color:var(--forest)" data-a="gomonth" data-v="${m}">${esc(mLabel(m))}</button></td>${TYPES.map(T=>`<td>${money(c.g[T.k].actual)}</td>`).join('')}<td>${money(l)}</td></tr>`}).join('');
   const TR=[['income','Income','var(--teal)'],['bills','Bills','var(--c-bills)'],['expenses','Expenses','var(--c-exp)'],['savings','Savings','var(--forest)'],['investments','Investments','var(--c-inv)'],['debt','Debt Payments','var(--amber)']];
   const sel=(S.ovSel&&S.ovSel.length?S.ovSel:['income','bills','expenses']).filter(k=>TR.some(t=>t[0]===k));
-  const act=TR.filter(t=>sel.includes(t[0]));
-  const mxv=Math.max(1,...all.flatMap(x=>act.map(t=>x.c.g[t[0]].actual)));
-  const chips=TR.map(([k,l,col])=>`<button type="button" class="chip" aria-pressed="${sel.includes(k)}" data-a="ovtoggle" data-v="${k}"><i class="sw" style="background:${col}"></i>${l}</button>`).join('');
-  const mini=all.map(({m,c})=>`<div class="c"><div class="bars">${act.map(([k,l,col])=>`<i style="height:${c.g[k].actual/mxv*100}%;background:${col}" title="${esc(mLabel(m))} ${l} ${money(c.g[k].actual)}" aria-label="${esc(mLabel(m))} ${l} ${money(c.g[k].actual)}"></i>`).join('')}</div><span class="lb">${mShort(m)}</span></div>`).join('');
+  const byCat=S.ovMode==='cat',ctype=TR.some(t=>t[0]===S.ovType)?S.ovType:'income';
+  const CC=['#3E6A82','#7E4B66','#B07A2E','#4F7A5A','#8A5A44','#5B5F8A','#A0566A','#6B7F3A'];
+  let series;
+  if(byCat){
+    const cl=S.cats[ctype].filter(c=>!c.archived),pick=(S.ovCatSel&&S.ovCatSel[ctype])||[],on=cl.filter(c=>pick.includes(c.id)),use=on.length?on:cl;
+    series=use.map(c=>({k:c.id,l:c.name,col:CC[cl.indexOf(c)%CC.length],val:m=>inMonth(c.id,m)}));
+    var chips=`<div class="chips"><button type="button" class="chip" aria-pressed="false" data-a="ovmode" data-v="type">By type</button><button type="button" class="chip" aria-pressed="true" data-a="ovmode" data-v="cat">By category</button></div><div class="chips">${TR.map(([k,l])=>`<button type="button" class="chip" aria-pressed="${k===ctype}" data-a="ovtype" data-v="${k}">${l}</button>`).join('')}</div><div class="chips">${cl.length?cl.map(c=>`<button type="button" class="chip" aria-pressed="${use.includes(c)}" data-a="ovcat" data-v="${c.id}"><i class="sw" style="background:${CC[cl.indexOf(c)%CC.length]}"></i>${esc(c.name)}</button>`).join(''):'<span class="small muted">No categories here yet. Add them on the Set-Up tab.</span>'}</div>`;
+  }else{
+    series=TR.filter(t=>sel.includes(t[0])).map(([k,l,col])=>({k,l,col,val:m=>calc(m).g[k].actual}));
+    var chips=`<div class="chips"><button type="button" class="chip" aria-pressed="true" data-a="ovmode" data-v="type">By type</button><button type="button" class="chip" aria-pressed="false" data-a="ovmode" data-v="cat">By category</button></div><div class="chips">${TR.map(([k,l,col])=>`<button type="button" class="chip" aria-pressed="${sel.includes(k)}" data-a="ovtoggle" data-v="${k}"><i class="sw" style="background:${col}"></i>${l}</button>`).join('')}</div>`;
+  }
+  const grid=all.map(({m})=>({m,vals:series.map(x=>x.val(m))}));
+  const act=series,mxv=Math.max(1,...grid.flatMap(g=>g.vals));
+  const mini=grid.map(({m,vals})=>`<div class="c"><div class="bars">${series.map((x,i)=>`<i style="height:${vals[i]/mxv*100}%;background:${x.col}" title="${esc(mLabel(m))} ${esc(x.l)} ${money(vals[i])}" aria-label="${esc(mLabel(m))} ${esc(x.l)} ${money(vals[i])}"></i>`).join('')}</div><span class="lb">${mShort(m)}</span></div>`).join('');
   const trendW=Math.max(0,all.length*(act.length*10+10));
   const yearUsed=(id,y)=>r2(S.tx.filter(t=>t.sub===id&&t.date.startsWith(String(y))).reduce((a,t)=>a+t.amt,0));
   const room=s=>s.room||0;
   const roomRow=(title,left,used,total,note)=>`<div class="goalrow"><div class="t"><b>${esc(title)}</b><span class="${left<0?'over':''}" ${left<0?'style="color:var(--bad);font-weight:600"':''}>${left<0?money(-left)+' over':money(left)+' room left'}</span></div><div class="prog"><i style="width:${total>0?Math.min(100,used/total*100):0}%${left<0?';background:var(--bad)':''}"></i></div><div class="small muted">${note}</div></div>`;
   const lim=S.cats.investments.filter(s=>!s.archived&&room(s)>0).map(s=>{
     const r0=room(s),used=allTime(s.id),left=r2(r0-used);
-    return roomRow(s.name,left,used,r0,`${money(used)} contributed since Oct 2026 of ${money(r0)} room remaining at the start`);
+    return roomRow(s.name,left,used,r0,`${money(used)} contributed`);
   }).join('');
   return `<div class="bar"><h1>Oct 2026 to Dec 2027</h1></div>
   <div class="tiles ovt"><div class="tile"><div class="l">Total Income</div><div class="v">${money(tot.income)}</div><div class="h">Logged across all 15 months.</div></div>
@@ -445,18 +461,18 @@ function renderOverview(){
   <div class="card" style="margin-top:16px"><h2>Month by month</h2><div class="scroll"><table class="gtab"><thead><tr><th>Month</th>${TYPES.map(T=>`<th>${T.label}</th>`).join('')}<th>Left over</th></tr></thead><tbody>${rows}</tbody>
   <tfoot><tr><td>Total</td>${TYPES.map(T=>`<td>${money(tot[T.k])}</td>`).join('')}<td>${money(totLeft)}</td></tr></tfoot></table></div>
 </div>
-  <div class="card trend" style="margin-top:16px"><h2>Trends${tipHtml({k:'trends',label:'Trends',tip:'Tap a category to add or remove it from the chart. Pick one or several to see how they moved month by month.'},'','About Trends')}</h2><div class="chips">${chips}</div><div class="chscroll"><div class="mini" style="min-width:${trendW}px" aria-label="Selected categories by month">${mini}</div></div></div>
+  <div class="card trend" style="margin-top:16px"><h2>Trends${tipHtml({k:'trends',label:'Trends',tip:'Tap a type to add or remove it from the chart. Switch to By category to see each income stream, bill or loan on its own. Hover a bar to see the month and amount.'},'','About Trends')}</h2>${chips}<div class="chscroll"><div class="mini" style="min-width:${trendW}px" aria-label="Selected categories by month">${mini}</div></div></div>
   <div class="cols" style="margin-top:16px"><div class="card sav"><h2>Savings goals</h2>${savingsMini()}</div>
   <div class="card dbt"><h2>Debt payoff</h2>${debtMini()}</div></div>
   <div class="card" style="margin-top:16px"><h2>Account contribution room</h2>${lim||'<p class="empty">Add your contribution room on the Set-Up tab, under Investments.</p>'}</div>`;
 }
 function savingsMini(){
-  const g=S.cats.savings.filter(s=>(s.goal||0)>0&&!s.archived).map(s=>{const sv=currentBal(s.id);return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(sv)} of ${money(s.goal)}</span></div>${progBar(sv,inMonth(s.id,realMonth()),s.goal)}</div>`}).join('');
-  return g?`<div class="legend" style="margin:4px 0"><span><i class="sw base"></i>Starting balance</span><span><i class="sw" style="background:var(--forest)"></i>Added in ${esc(mShort(realMonth()))}</span></div>${g}`:'<p class="empty">Set a goal amount on the Set-Up tab.</p>';
+  const g=S.cats.savings.filter(s=>(s.goal||0)>0&&!s.archived).map(s=>{const sv=currentBal(s.id);return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(sv)} of ${money(s.goal)}</span></div>${segBar(sv,monthSegs(s.id,realMonth()),s.goal)}</div>`}).join('');
+  return g?g:'<p class="empty">Set a goal amount on the Set-Up tab.</p>';
 }
 function debtMini(){
-  const l=S.cats.debt.filter(s=>(s.start||0)>0&&!s.archived).map(s=>{const L=loanAt(s,realMonth());return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(L.rem)} remaining</span></div>${progBar(L.total,L.m,s.start,'debt')}</div>`}).join('');
-  return l?`<div class="legend" style="margin:4px 0"><span><i class="sw base"></i>Paid since Oct 2026</span><span><i class="sw debtc"></i>Paid in ${esc(mShort(realMonth()))}</span></div>${l}`:'<p class="empty">Add a starting balance on the Set-Up tab.</p>';
+  const l=S.cats.debt.filter(s=>(s.start||0)>0&&!s.archived).map(s=>{const L=loanAt(s,realMonth());return `<div class="goalrow"><div class="t"><b>${esc(s.name)}</b><span>${money(L.rem)} remaining</span></div>${segBar(L.total,monthSegs(s.id,realMonth()),s.start,'debt')}</div>`}).join('');
+  return l?l:'<p class="empty">Add a starting balance on the Set-Up tab.</p>';
 }
 
 /* ---------- net worth ---------- */
@@ -673,6 +689,9 @@ document.addEventListener('click',e=>{
   else if(a==='undo'){undo()}
   else if(a==='redo'){redo()}
   else if(a==='caltoggle'){let x=calShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.calShow=x;save();render()}}
+  else if(a==='ovmode'){S.ovMode=v==='cat'?'cat':'type';save();render()}
+  else if(a==='ovtype'){S.ovType=v;save();render()}
+  else if(a==='ovcat'){const ty=S.ovType||'income',cl=S.cats[ty].filter(c=>!c.archived).map(c=>c.id);S.ovCatSel=S.ovCatSel||{};let cur0=(S.ovCatSel[ty]||[]).filter(x=>cl.includes(x));if(!cur0.length)cur0=cl.slice();cur0=cur0.includes(v)?cur0.filter(x=>x!==v):cur0.concat(v);if(cur0.length){S.ovCatSel[ty]=cur0;save();render()}}
   else if(a==='ovtoggle'){const k=v;let s=(S.ovSel&&S.ovSel.length?S.ovSel:['income','bills','expenses']).slice();s=s.includes(k)?s.filter(x=>x!==k):s.concat(k);if(s.length){S.ovSel=s;save();render()}}
   else if(a==='togglesetup'){S.hideSetup=!S.hideSetup;if(S.hideSetup)tab='month';save();render();window.scrollTo(0,0);
     toast(S.hideSetup?'Set-Up tab hidden. Find it next to Sign out.':'Set-Up is back in the tabs')}

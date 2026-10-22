@@ -337,3 +337,6 @@ table{width:100%;border-collapse:collapse}
 .nspop .chip{padding:5px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font:inherit;font-size:13.5px;cursor:pointer}
 .nspop .chip[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--surface2);font-weight:600}
 .nspop p{margin:6px 0 0}
+.prog > i.seg{display:block;height:100%;border-left:1px solid var(--surface)}
+.prog.debt > i.seg{background:inherit}
+.trend .chips{margin-top:8px}

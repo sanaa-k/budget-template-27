@@ -546,7 +546,7 @@ function archivedCard(){
   ${a.map(({s,T})=>`<div class="rule"><div><b>${esc(s.name)}</b> <span class="small muted">${T.label}. Shown through ${esc(mLabel(s.until))}</span></div><button class="btn ghost" data-a="restorecat" data-v="${s.id}">Restore</button></div>`).join('')}</div>`;
 }
 /* ---------- import from the Google Sheets template ---------- */
-let impPrev=null,impOpts={amounts:true,goals:true},impBusy=false,impErr='';
+let impPrev=null,impOpts={amounts:true},impBusy=false,impErr='';
 const BTV=(typeof window!=='undefined'&&window.__BT_V)||'1';
 function loadScript(src){return new Promise((ok,no)=>{const x=document.createElement('script');x.src=src;x.onload=ok;x.onerror=()=>no(new Error('load '+src));document.head.appendChild(x)})}
 async function loadImporter(){if(window.XLSX&&window.BTImport)return;await loadScript('/vendor/xlsx.core.min.js?v='+BTV);await loadScript('/importer.js?v='+BTV)}
@@ -571,7 +571,6 @@ function applyImport(res,o){
       let c=old.find(x=>!used.has(x.id)&&nameKey(x.name)===nameKey(it.name));
       if(c){delete c.archived;delete c.until}else c={id:uid(),name:it.name};
       used.add(c.id);next.push(c);
-      if(o.goals){if(k==='savings'&&res.goals[it.name])c.goal=res.goals[it.name];if(k==='debt'&&res.balances[it.name])c.start=res.balances[it.name]}
       if(o.amounts&&it.planned>0)MONTHS.forEach(m=>{S.plan[m]=S.plan[m]||{};S.plan[m][c.id]=it.planned});
     });
     old.forEach(c=>{if(!used.has(c.id)&&inUse(c.id))next.push(c)});
@@ -583,12 +582,11 @@ function importCard(){
   if(impErr)return `<div class="card" style="margin-bottom:16px"><h2>Import from your template</h2><p style="margin:6px 0 10px">${esc(impErr)}</p><button class="btn ghost" data-a="impcancel">Close</button></div>`;
   if(!impPrev)return '';
   const r=impPrev,L={income:'Income',expenses:'Expenses',bills:'Bills',debt:'Debt',savings:'Savings',investments:'Investments'};
-  const hasAmt=Object.values(r.cats).some(a=>a.some(x=>x.planned>0)),hasGoal=Object.keys(r.goals).length||Object.keys(r.balances).length;
-  const rows=['income','expenses','bills','debt','savings','investments'].filter(k=>r.cats[k].length).map(k=>`<div class="improw"><b>${L[k]}</b><span>${r.cats[k].map(x=>esc(x.name)+(k==='savings'&&r.goals[x.name]?` (goal ${money(r.goals[x.name])})`:'')+(k==='debt'&&r.balances[x.name]?` (${money(r.balances[x.name])})`:'')).join(', ')}</span></div>`).join('');
+  const hasAmt=Object.values(r.cats).some(a=>a.some(x=>x.planned>0));
+  const rows=['income','expenses','bills','debt','savings','investments'].filter(k=>r.cats[k].length).map(k=>`<div class="improw"><b>${L[k]}</b><span>${r.cats[k].map(x=>esc(x.name)).join(', ')}</span></div>`).join('');
   return `<div class="card impcard" style="margin-bottom:16px"><h2>Import from your template</h2>
     <p class="muted" style="margin:4px 0 10px">Found in the “${esc(r.sheet)}” tab. Your file stays in your browser; only these names and amounts are saved.</p>
     <div class="imptable">${rows}</div>
-    ${hasGoal?`<label class="impopt"><input type="checkbox" data-c="impopt" data-k="goals" ${impOpts.goals?'checked':''}> Copy savings goals and loan balances</label>`:''}
     ${hasAmt?`<label class="impopt"><input type="checkbox" data-c="impopt" data-k="amounts" ${impOpts.amounts?'checked':''}> Copy planned amounts to every month</label>`:''}
     <p class="small muted" style="margin:10px 0">Starting categories you haven't used are replaced. Anything with entries stays. Starting balances and amounts invested aren't in the template, so you'll enter those yourself.</p>
     <div style="display:flex;gap:8px"><button class="btn" data-a="impapply">Import</button><button class="btn ghost" data-a="impcancel">Cancel</button></div></div>`;

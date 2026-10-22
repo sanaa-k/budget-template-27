@@ -545,6 +545,54 @@ function archivedCard(){
   return `<div class="card" style="margin-top:16px"><h2>Archived lines${tipHtml({k:'archived',label:'Archived lines',tip:"Lines you've stopped using. Every past month keeps its data. Restore one to use it again."})}</h2>
   ${a.map(({s,T})=>`<div class="rule"><div><b>${esc(s.name)}</b> <span class="small muted">${T.label}. Shown through ${esc(mLabel(s.until))}</span></div><button class="btn ghost" data-a="restorecat" data-v="${s.id}">Restore</button></div>`).join('')}</div>`;
 }
+/* ---------- import from the Google Sheets template ---------- */
+let impPrev=null,impOpts={amounts:true,goals:true},impBusy=false,impErr='';
+const BTV=(typeof window!=='undefined'&&window.__BT_V)||'1';
+function loadScript(src){return new Promise((ok,no)=>{const x=document.createElement('script');x.src=src;x.onload=ok;x.onerror=()=>no(new Error('load '+src));document.head.appendChild(x)})}
+async function loadImporter(){if(window.XLSX&&window.BTImport)return;await loadScript('/vendor/xlsx.core.min.js?v='+BTV);await loadScript('/importer.js?v='+BTV)}
+async function readTemplateFile(file){
+  impErr='';impPrev=null;impBusy=true;render();
+  try{
+    if(file.size>15*1024*1024)throw new Error('big');
+    await loadImporter();
+    const wb=window.XLSX.read(await file.arrayBuffer(),{type:'array'});
+    const r=window.BTImport.parse(window.XLSX,wb,new Date().getMonth());
+    if(r.error)impErr=r.error;else impPrev=r;
+  }catch(e){impErr="I couldn't read that file. In Google Sheets, choose File, then Download, then Microsoft Excel (.xlsx), and pick the downloaded file."}
+  impBusy=false;render();
+}
+const nameKey=n=>String(n||'').replace(/\s+/g,' ').trim().toLowerCase();
+function inUse(id){return S.tx.some(t=>t.sub===id)||S.rules.some(r=>r.sub===id)||Object.values(S.plan||{}).some(pl=>pl&&pl[id]>0)||Object.values(S.bal||{}).some(x=>x&&x[id]!==undefined)||Object.values(S.nw||{}).some(q=>q&&q[id]>0)}
+function applyImport(res,o){
+  TYPES.forEach(T=>{
+    const k=T.k,items=res.cats[k]||[];if(!items.length)return;
+    const old=S.cats[k],used=new Set(),next=[];
+    items.forEach(it=>{
+      let c=old.find(x=>!used.has(x.id)&&nameKey(x.name)===nameKey(it.name));
+      if(c){delete c.archived;delete c.until}else c={id:uid(),name:it.name};
+      used.add(c.id);next.push(c);
+      if(o.goals){if(k==='savings'&&res.goals[it.name])c.goal=res.goals[it.name];if(k==='debt'&&res.balances[it.name])c.start=res.balances[it.name]}
+      if(o.amounts&&it.planned>0)MONTHS.forEach(m=>{S.plan[m]=S.plan[m]||{};S.plan[m][c.id]=it.planned});
+    });
+    old.forEach(c=>{if(!used.has(c.id)&&inUse(c.id))next.push(c)});
+    S.cats[k]=next;
+  });
+}
+function importCard(){
+  if(impBusy)return '<div class="card" style="margin-bottom:16px"><p class="muted" style="margin:0">Reading your file…</p></div>';
+  if(impErr)return `<div class="card" style="margin-bottom:16px"><h2>Import from your template</h2><p style="margin:6px 0 10px">${esc(impErr)}</p><button class="btn ghost" data-a="impcancel">Close</button></div>`;
+  if(!impPrev)return '';
+  const r=impPrev,L={income:'Income',expenses:'Expenses',bills:'Bills',debt:'Debt',savings:'Savings',investments:'Investments'};
+  const hasAmt=Object.values(r.cats).some(a=>a.some(x=>x.planned>0)),hasGoal=Object.keys(r.goals).length||Object.keys(r.balances).length;
+  const rows=['income','expenses','bills','debt','savings','investments'].filter(k=>r.cats[k].length).map(k=>`<div class="improw"><b>${L[k]}</b><span>${r.cats[k].map(x=>esc(x.name)+(k==='savings'&&r.goals[x.name]?` (goal ${money(r.goals[x.name])})`:'')+(k==='debt'&&r.balances[x.name]?` (${money(r.balances[x.name])})`:'')).join(', ')}</span></div>`).join('');
+  return `<div class="card impcard" style="margin-bottom:16px"><h2>Import from your template</h2>
+    <p class="muted" style="margin:4px 0 10px">Found in the “${esc(r.sheet)}” tab. Your file stays in your browser; only these names and amounts are saved.</p>
+    <div class="imptable">${rows}</div>
+    ${hasGoal?`<label class="impopt"><input type="checkbox" data-c="impopt" data-k="goals" ${impOpts.goals?'checked':''}> Copy savings goals and loan balances</label>`:''}
+    ${hasAmt?`<label class="impopt"><input type="checkbox" data-c="impopt" data-k="amounts" ${impOpts.amounts?'checked':''}> Copy planned amounts to every month</label>`:''}
+    <p class="small muted" style="margin:10px 0">Starting categories you haven't used are replaced. Anything with entries stays. Starting balances and amounts invested aren't in the template, so you'll enter those yourself.</p>
+    <div style="display:flex;gap:8px"><button class="btn" data-a="impapply">Import</button><button class="btn ghost" data-a="impcancel">Cancel</button></div></div>`;
+}
 function renderCats(){
   const extras={savings:[['open','Starting balance'],['goal','Goal']],investments:[['open','Total invested'],['room','Remaining contribution room']],debt:[['start','Current balance']]};
   const hints={savings:'Starting balance is what you had saved before Oct 2026. A goal is optional.',investments:'Total invested is what the account holds today. Remaining contribution room is how much more you are allowed to contribute as of Oct 2026. Leave room blank for accounts without a limit.',debt:'Current balance is what you owe today. Payments you log under Debt are subtracted from it each month.'
@@ -563,8 +611,8 @@ function renderCats(){
       ${body}</div>`;
   };
   const col=ks=>`<div class="stack">${ks.map(k=>card(TYPES.find(t=>t.k===k))).join('')}</div>`;
-  return `<div class="bar"><h1>Set-Up${tipHtml({k:'setup',label:'Set-Up',tip:'Set up your budget sheet here. Include all income sources, bills, expense categories, etc. New categories can be added at any point.'},'','About Set-Up')}</h1><button class="btn ghost" data-a="togglesetup" style="margin-left:auto">${S.hideSetup?'Show as a tab':'Hide this tab'}</button></div>
-  <div class="catgrid3">${col(['income','expenses'])}${col(['bills','debt'])}${col(['savings','investments'])}</div>
+  return `<div class="bar"><h1>Set-Up${tipHtml({k:'setup',label:'Set-Up',tip:'Set up your budget sheet here. Include all income sources, bills, expense categories, etc. New categories can be added at any point.'},'','About Set-Up')}</h1><button class="btn ghost" data-a="impchoose" style="margin-left:auto">Import from my old template</button><input type="file" id="imp-file" accept=".xlsx,.xls" hidden data-c="impfile"><button class="btn ghost" data-a="togglesetup" style="margin-left:8px">${S.hideSetup?'Show as a tab':'Hide this tab'}</button></div>
+  ${!S.setupDone&&!impPrev&&!impBusy&&!impErr?'<p class="muted small" style="margin:0 0 12px">Coming from the Google Sheets template? In Google Sheets choose File, Download, Microsoft Excel (.xlsx), then use Import from my old template.</p>':''}${importCard()}<div class="catgrid3">${col(['income','expenses'])}${col(['bills','debt'])}${col(['savings','investments'])}</div>
   ${recurringCard()}${archivedCard()}`;
 }
 
@@ -619,6 +667,9 @@ document.addEventListener('click',e=>{
     S.cats[k]=S.cats[k].filter(c=>c.id!==v);save();render();toast('Removed',1)}
   else if(a==='restorecat'){const s=subOf(v);if(s){delete s.archived;delete s.until;save();render();toast(`"${s.name}" is back`)}}
   else if(a==='nstoggle'){let x=nsShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.nsShow=x;save();render()}}
+  else if(a==='impchoose'){const f=document.getElementById('imp-file');if(f)f.click()}
+  else if(a==='impcancel'){impPrev=null;impErr='';render()}
+  else if(a==='impapply'){if(impPrev){const r=impPrev;applyImport(r,impOpts);impPrev=null;save();render();toast('Imported your categories',1)}}
   else if(a==='undo'){undo()}
   else if(a==='redo'){redo()}
   else if(a==='caltoggle'){let x=calShow().slice();x=x.includes(v)?x.filter(k=>k!==v):x.concat(v);if(x.length){S.calShow=x;save();render()}}
@@ -650,6 +701,8 @@ document.addEventListener('keydown',e=>{
   e.preventDefault();if(k==='y'||e.shiftKey)redo();else undo()});
 document.addEventListener('change',e=>{
   const t=e.target,c=t.dataset.c;if(!c)return;
+  if(c==='impfile'){const f=t.files&&t.files[0];t.value='';if(f)readTemplateFile(f);return}
+  if(c==='impopt'){impOpts[t.dataset.k]=t.checked;return}
   if(c==='month'){cancelEdit();cur=t.value;selDay=null;render()}
   else if(c==='d-type'){draft.type=t.value;draft.sub='';render()}
   else if(c==='d-sub')draft.sub=t.value;

@@ -320,3 +320,11 @@ table{width:100%;border-collapse:collapse}
 .toastbtn{margin-left:12px;background:none;border:0;border-bottom:1px solid currentColor;color:inherit;font:inherit;font-weight:700;padding:0;cursor:pointer}
 .undobtn{font-size:18px;line-height:1;text-decoration:none;padding:2px 4px}
 .undobtn[disabled]{opacity:.35;cursor:default}
+
+.imptable{display:grid;gap:6px;margin:6px 0 10px}
+.improw{display:grid;grid-template-columns:96px 1fr;gap:10px;font-size:14px;line-height:1.4}
+.improw b{font-weight:600}
+.improw span{color:var(--muted)}
+.impopt{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+.impopt input{width:auto;min-height:0}
+@media(max-width:640px){.improw{grid-template-columns:1fr;gap:0}}

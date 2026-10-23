@@ -364,3 +364,15 @@ table{width:100%;border-collapse:collapse}
 
 .wdrow{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
 .wdrow input{width:auto;min-height:0}
+
+.guide{margin-bottom:16px;border-top:3px solid var(--forest)}
+.guidehead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.guidehead h2{margin:0}
+.guidelist{list-style:none;margin:10px 0 0;padding:0}
+.guidelist li{display:grid;grid-template-columns:30px 1fr auto;gap:12px;align-items:center;padding:12px 8px;border-top:1px solid var(--line);border-radius:8px}
+.guidelist li.now{background:var(--sage2)}
+.guidelist p{margin:2px 0 0;font-size:13.5px;color:var(--muted)}
+.guidelist .gn{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
+.guidelist li.done .gn{background:var(--forest);border-color:var(--forest);color:#fff}
+.guidelist li.done b{color:var(--muted)}
+@media (max-width:640px){.guidelist li{grid-template-columns:30px 1fr}.guidelist li .btn{grid-column:2;justify-self:start}}

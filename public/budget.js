@@ -45,7 +45,7 @@ function seed(){
 function load(){return window.__BT_INITIAL||null}
 function persist(){try{if(window.__BT_SAVE)window.__BT_SAVE(S)}catch(e){}}
 /* undo / redo: snapshots of the budget (view preferences are not undone) */
-const VIEWK=['palette','hideSetup','setupDone','calShow','nsShow','ovSel','ovMode','ovType','ovCatSel'];
+const VIEWK=['palette','hideSetup','setupDone','calShow','nsShow','ovSel','ovMode','ovType','ovCatSel','guideOff','guideAck'];
 let undoStack=[],redoStack=[],lastSnap=null;
 const snapOf=o=>{const c=Object.assign({},o);VIEWK.forEach(k=>delete c[k]);return JSON.stringify(c)};
 function save(){try{const ns=snapOf(S);if(lastSnap===null)lastSnap=ns;else if(ns!==lastSnap){undoStack.push(lastSnap);if(undoStack.length>100)undoStack.shift();redoStack=[];lastSnap=ns}}catch(e){}persist()}
@@ -54,7 +54,7 @@ function undo(){if(!undoStack.length){toast('Nothing to undo');return}redoStack.
 function redo(){if(!redoStack.length){toast('Nothing to redo');return}undoStack.push(snapOf(S));applySnap(redoStack.pop());toast('Redone')}
 function blank(){
   const b=seed();b.tx=[];b.bal={};b.nw={};b.plan={};b.rules=[];b.skip={};MONTHS.forEach(m=>b.plan[m]={});
-  Object.keys(b.cats).forEach(k=>b.cats[k].forEach(c=>{['goal','open','start','limit','room'].forEach(f=>{if(c[f]!==undefined)c[f]=0})}));
+  Object.keys(b.cats).forEach(k=>b.cats[k].forEach(c=>{['goal','open','start','limit','room','base'].forEach(f=>{if(c[f]!==undefined)c[f]=0})}));
   b.v=3;return b;
 }
 let S=load()||blank();if(!S.bal)S.bal={};if(!S.rules)S.rules=[];if(!S.skip)S.skip={};
@@ -231,7 +231,7 @@ function shell(inner){
     <div class="who"><button class="linkbtn undobtn" data-a="undo" aria-label="Undo" title="Undo (Ctrl+Z)" ${undoStack.length?'':'disabled'}>↶</button><button class="linkbtn undobtn" data-a="redo" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" ${redoStack.length?'':'disabled'}>↷</button><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
   </div></header>
   <main>${inner}
-    <div class="foot"><button class="btn ghost" data-a="clear">${wipeArmed?'This erases everything you entered. Click again to confirm':'Clear all numbers'}</button><span class="small muted">Covers Oct 2026 to Dec 2027.</span></div>
+    <div class="foot"><button class="btn ghost" data-a="clear">${wipeArmed?'This erases everything you entered. Click again to confirm':'Clear all numbers'}</button>${tipHtml({k:'clear-all',label:'Clear all numbers',tip:'Deletes every transaction, planned amount, Net Worth balance and recurring item across all 15 months. It also resets starting balances, goals, loan balances and contribution room to 0. Your line names stay. It asks you to click twice, and the undo arrow at the top brings everything back right after.'},'','What Clear all numbers does')}<span class="small muted">Covers Oct 2026 to Dec 2027.</span></div>
   </main>
   ${tab==='month'&&isMobile()?(sheetOpen?sheetHtml():`<button class="fab" data-a="opensheet" aria-label="Add a transaction"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>`):''}`;
 }
@@ -614,6 +614,22 @@ function importCard(){
     <p class="small muted" style="margin:10px 0">Starting categories you haven't used are replaced. Anything with entries stays. Starting balances and amounts invested aren't in the template, so you'll enter those yourself.</p>
     <div style="display:flex;gap:8px"><button class="btn" data-a="impapply">Import</button><button class="btn ghost" data-a="impcancel">Cancel</button></div></div>`;
 }
+function guideCard(){
+  const all=Object.values(S.cats).flat().filter(c=>!c.archived);
+  const planned=all.some(c=>c.base>0);
+  const nums=S.cats.savings.some(c=>c.open>0||c.goal>0)||S.cats.debt.some(c=>c.start>0)||S.cats.investments.some(c=>c.open>0||c.room>0);
+  const steps=[
+    {t:'Make the lines yours',d:'Rename, remove or add lines under Income, Bills, Expenses, Savings, Investments and Debt so they match your life. Coming from the Google Sheets template? Use Import from my old template above.',done:!!S.guideAck,btn:S.guideAck?['guideack','Undo','ghost']:['guideack','Mark done','']},
+    {t:'Set a monthly plan',d:'Type what you expect each line to be in the Planned per month box. It fills all 15 months. You can still change any single month later on the Monthly Spending tab.',done:planned,btn:['guidego','Go to Income','ghost','income']},
+    {t:'Add your starting numbers',d:'Savings: starting balance and goal. Debt: current balance. Investments: total invested and remaining contribution room. Leave anything that does not apply blank.',done:nums,btn:['guidego','Go to Savings','ghost','savings']},
+    {t:'Log this month so far',d:"On Monthly Spending, add your pay and what you have spent so far this month. What's Left only makes sense once those are in, because it is your income minus what you have logged.",done:false,btn:['guideopen','Open Monthly Spending','']}
+  ];
+  const ready=steps.slice(0,3).every(x=>x.done);
+  if(S.guideOff)return '';
+  return `<div class="card guide"><div class="guidehead"><h2>Get started in four steps</h2><button class="linkbtn small" data-a="guidehide">Hide guide</button></div>
+  <ol class="guidelist">${steps.map((x,i)=>`<li class="${x.done?'done':''}${(!x.done&&steps.slice(0,i).every(y=>y.done||y===steps[3]))?' now':''}"><span class="gn">${x.done?'&#10003;':i+1}</span><div><b>${x.t}</b><p>${x.d}</p></div><button class="btn ${x.btn[2]}" data-a="${x.btn[0]}" ${x.btn[3]?`data-v="${x.btn[3]}"`:''}>${x.btn[1]}</button></li>`).join('')}</ol>
+  ${ready?'<p class="small" style="margin:10px 0 0;color:var(--forest)">Set-Up is done. Next, log this month so far.</p>':''}</div>`;
+}
 function renderCats(){
   const extras={savings:[['open','Starting balance'],['goal','Goal']],investments:[['open','Total invested'],['room','Remaining contribution room']],debt:[['start','Current balance']]};
   const hints={savings:'Starting balance is what you had saved before Oct 2026. A goal is optional.',investments:'Total invested is what the account holds today. Remaining contribution room is how much more you are allowed to contribute as of Oct 2026. Leave room blank for accounts without a limit.',debt:'Current balance is what you owe today. Payments you log under Debt are subtracted from it each month.'
@@ -627,13 +643,13 @@ function renderCats(){
     if(!list.length)body='<p class="empty">No lines yet. Add your first one above.</p>';
     else if(ex.length)body=`<div class="crow c${ex.length} head"><span>Name</span>${ex.map(e=>`<span>${e[1]}</span>`).join('')}<span></span></div>`+list.map(s=>`<div class="crow c${ex.length}">${nameIn(s)}${ex.map(e=>`<input type="number" min="0" aria-label="${esc(s.name)} ${e[1].toLowerCase()}" placeholder="0" value="${s[e[0]]||''}" data-c="${e[0]==='base'?'basepl':'extra'}" data-k="${e[0]}" data-v="${s.id}">`).join('')}${xb(s)}</div>`).join('');
     else body=`<div class="chips">${list.map(s=>`<div class="chip">${nameIn(s)}${xb(s)}</div>`).join('')}</div>`;
-    return `<div class="card"><h2>${T.label}${tipHtml(Object.assign({},T,{tip:T.tip+(hints[T.k]?' '+hints[T.k]:'')}))}</h2>
+    return `<div class="card" id="card-${T.k}"><h2>${T.label}${tipHtml(Object.assign({},T,{tip:T.tip+(hints[T.k]?' '+hints[T.k]:'')}))}</h2>
       <form class="addrow" data-form="addcat" data-t="${T.k}"><input type="text" id="add-${T.k}" placeholder="New ${noun[T.k]}" aria-label="New ${noun[T.k]} name" autocomplete="off"><button class="btn" type="submit">Add</button></form>
       ${body}</div>`;
   };
   const col=ks=>`<div class="stack">${ks.map(k=>card(TYPES.find(t=>t.k===k))).join('')}</div>`;
-  return `<div class="bar"><h1>Set-Up${tipHtml({k:'setup',label:'Set-Up',tip:'Set up your budget sheet here. Include all income sources, bills, expense categories, etc. New categories can be added at any point.'},'','About Set-Up')}</h1><button class="btn ghost" data-a="impchoose" style="margin-left:auto">Import from my old template</button><input type="file" id="imp-file" accept=".xlsx,.xls" hidden data-c="impfile"><button class="btn ghost" data-a="togglesetup" style="margin-left:8px">${S.hideSetup?'Show as a tab':'Hide this tab'}</button></div>
-  ${!S.setupDone&&!impPrev&&!impBusy&&!impErr?'<p class="muted small" style="margin:0 0 12px">Coming from the Google Sheets template? In Google Sheets choose File, Download, Microsoft Excel (.xlsx), then use Import from my old template.</p>':''}${importCard()}<div class="catgrid3">${col(['income','expenses'])}${col(['bills','debt'])}${col(['savings','investments'])}</div>
+  return `<div class="bar"><h1>Set-Up${tipHtml({k:'setup',label:'Set-Up',tip:'Set up your budget sheet here. Include all income sources, bills, expense categories, etc. New categories can be added at any point.'},'','About Set-Up')}</h1>${S.guideOff?'<button class="btn ghost" data-a="guideshow" style="margin-left:auto">Setup guide</button>':''}<button class="btn ghost" data-a="impchoose" style="margin-left:${S.guideOff?'8px':'auto'}">Import from my old template</button><input type="file" id="imp-file" accept=".xlsx,.xls" hidden data-c="impfile"><button class="btn ghost" data-a="togglesetup" style="margin-left:8px">${S.hideSetup?'Show as a tab':'Hide this tab'}</button></div>
+  ${!S.setupDone&&!impPrev&&!impBusy&&!impErr?'<p class="muted small" style="margin:0 0 12px">Coming from the Google Sheets template? In Google Sheets choose File, Download, Microsoft Excel (.xlsx), then use Import from my old template.</p>':''}${guideCard()}${importCard()}<div class="catgrid3">${col(['income','expenses'])}${col(['bills','debt'])}${col(['savings','investments'])}</div>
   ${recurringCard()}${archivedCard()}`;
 }
 
@@ -703,11 +719,16 @@ document.addEventListener('click',e=>{
   else if(a==='ovtoggle'){const k=v;let s=(S.ovSel&&S.ovSel.length?S.ovSel:['income','bills','expenses']).slice();s=s.includes(k)?s.filter(x=>x!==k):s.concat(k);if(s.length){S.ovSel=s;save();render()}}
   else if(a==='togglesetup'){S.hideSetup=!S.hideSetup;if(S.hideSetup)tab='month';save();render();window.scrollTo(0,0);
     toast(S.hideSetup?'Set-Up tab hidden. Find it next to Sign out.':'Set-Up is back in the tabs')}
+  else if(a==='guideack'){S.guideAck=!S.guideAck;save();render()}
+  else if(a==='guidehide'){S.guideOff=true;save();render();toast('Guide hidden. Bring it back with Setup guide at the top.')}
+  else if(a==='guideshow'){S.guideOff=false;save();render()}
+  else if(a==='guidego'){const el=document.getElementById('card-'+v);if(el){el.scrollIntoView({behavior:'smooth',block:'start'});const i=el.querySelector('input[type=text]');if(i)setTimeout(()=>i.focus({preventScroll:true}),350)}}
+  else if(a==='guideopen'){cancelEdit();S.setupDone=true;S.guideAck=true;save();tab='month';selDay=null;render();window.scrollTo(0,0)}
   else if(a==='clear'){
     if(!wipeArmed){wipeArmed=true;render();clearTimeout(window.__w);window.__w=setTimeout(()=>{wipeArmed=false;render()},6000);return}
     wipeArmed=false;S.tx=[];S.bal={};S.nw={};S.plan={};S.rules=[];S.skip={};editRuleId=null;ruleOpen=false;rd=newRuleDraft();MONTHS.forEach(m=>S.plan[m]={});
-    Object.keys(S.cats).forEach(k=>S.cats[k].forEach(c=>{['goal','open','start','limit','room'].forEach(f=>{if(c[f]!==undefined)c[f]=0})}));
-    save();render();toast('Cleared. Your line names are kept.')}
+    Object.keys(S.cats).forEach(k=>S.cats[k].forEach(c=>{['goal','open','start','limit','room','base'].forEach(f=>{if(c[f]!==undefined)c[f]=0})}));
+    save();render();toast('Cleared. Your line names are kept.',1)}
 });
 /* keep keyboard focus moving with Tab when a changed field re-draws the page */
 let pendingTab=null;

@@ -188,6 +188,8 @@ let tab=(S.setupDone||S.hideSetup)?'month':'cats', cur=(MONTHS.includes(todayStr
 
 const typeOf=id=>{for(const T of TYPES) if(S.cats[T.k].some(c=>c.id===id)) return T.k;return null};
 const subOf=id=>{for(const T of TYPES){const c=S.cats[T.k].find(c=>c.id===id);if(c)return c}return null};
+/* A line only counts as over its plan once it is past a small buffer: the larger of $2 or 2% of the plan. */
+const isOver=(a,p)=>p>0&&a>p+Math.max(2,p*0.02);
 const monthTx=mk=>S.tx.filter(t=>t.date.slice(0,7)===mk);
 
 function calc(mk){
@@ -354,23 +356,23 @@ function calendar(c){
 function charts(c){
   const rows=['bills','expenses','savings','investments','debt'];
   const mx=Math.max(1,...rows.flatMap(k=>[c.g[k].planned,c.g[k].actual]));
-  const hb=rows.map(k=>{const g=c.g[k],over=(k==='bills'||k==='expenses'||k==='debt')&&g.actual>g.planned&&g.planned>0;
+  const hb=rows.map(k=>{const g=c.g[k],over=(k==='bills'||k==='expenses'||k==='debt')&&isOver(g.actual,g.planned);
     return `<div class="row"><span>${TYPES.find(t=>t.k===k).label}</span><div><div class="tr"><div class="f p" style="width:${g.planned/mx*100}%"></div></div><div class="tr"><div class="f ${over?'over':'a'}" style="width:${g.actual/mx*100}%"></div></div></div><span class="num small">${money(g.actual)}<br><span class="muted">of ${money(g.planned)}</span></span></div>`}).join('');
   const planOf=s=>effPlan(c,s.id);
   const ex=S.cats.expenses.map(s=>({n:s.name,a:c.act[s.id]||0,p:planOf(s)})).filter(x=>x.a>0||x.p>0)
     .sort((x,y)=>(y.p>0?y.a/y.p:-1)-(x.p>0?x.a/x.p:-1)||y.a-x.a);
   const exRows=ex.map(x=>{
-    if(x.p>0){const pct=x.a/x.p,cls=pct>1?'over':pct>=.85?'warn':'ok';
+    if(x.p>0){const pct=x.a/x.p,cls=isOver(x.a,x.p)?'over':pct>=.85?'warn':'ok';
       return `<div class="row" style="grid-template-columns:110px 1fr 74px"><span>${esc(x.n)}</span><div class="tr"><div class="f ${cls}" style="width:${Math.min(100,pct*100)}%"></div></div><span class="num small">${money(x.a)}<br><span class="muted">of ${money(x.p)}</span></span></div>`}
     return `<div class="row" style="grid-template-columns:110px 1fr 74px"><span>${esc(x.n)}</span><div class="tr"></div><span class="num small">${money(x.a)}<br><span class="muted">no plan</span></span></div>`}).join('');
-  const exTip=tipHtml({k:'wmw-ex',label:'Expenses',tip:"Each bar fills toward what you planned for that line. It turns amber as you near the plan and red once you're over it."},'','About the expense bars');
+  const exTip=tipHtml({k:'wmw-ex',label:'Expenses',tip:"Each bar fills toward what you planned for that line. It turns amber as you near the plan and red once you're clearly over it. Small overages, up to $2 or 2% of the plan, aren't flagged."},'','About the expense bars');
   const cat=exRows||'<p class="empty">Expenses show up here once you plan or log them.</p>';
   return `<div class="cols"><div class="card"><h2>Planned vs actual</h2><div class="hint" style="margin-top:2px"><i class="sw" style="background:var(--sage)"></i>Planned <i class="sw" style="background:var(--forest);margin-left:10px"></i>Actual</div><div class="hb">${hb}</div></div>
   <div class="card"><h2>Expense breakdown${exTip}</h2><div class="hb">${cat}</div></div></div>`;
 }
 function groupTable(k,c){
   const T=TYPES.find(t=>t.k===k),subs=S.cats[k].filter(s=>liveIn(s,c.mk)||(c.act[s.id]||0)>0);
-  const rows=subs.map(s=>{const pm=c.plan[s.id]||0,ps=c.sp[s.id]||0,p=pm>0?pm:ps,a=c.act[s.id]||0,over=(k==='bills'||k==='expenses')&&p>0&&a>p;
+  const rows=subs.map(s=>{const pm=c.plan[s.id]||0,ps=c.sp[s.id]||0,p=pm>0?pm:ps,a=c.act[s.id]||0,over=(k==='bills'||k==='expenses')&&isOver(a,p);
     if(!liveIn(s,c.mk))return `<tr><td>${esc(s.name)} <span class="small muted">(archived)</span></td><td class="n muted">&ndash;</td><td class="n ${over?'over':''}">${money(a)}</td></tr>`;
     return `<tr><td>${esc(s.name)}${(pm<=0&&ps>0)?`<span class="repwrap" style="margin-left:5px" title="Planned from your recurring schedule">${REP}</span>`:''}</td><td class="n"><input type="number" step="1" min="0" aria-label="Planned for ${esc(s.name)}" value="${pm||''}" placeholder="${ps>0?ps:0}" data-c="plan" data-v="${s.id}"></td><td class="n ${over?'over':''}">${money(a)}</td></tr>`}).join('');
   return `<div class="card"><table class="bt"><thead><tr><th>${T.label}${tipHtml(T)}</th><th>Planned</th><th>Actual</th></tr></thead><tbody>${rows||'<tr><td colspan="3" class="muted small">No lines yet. Add them on the Set-Up tab.</td></tr>'}</tbody>

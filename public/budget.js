@@ -263,6 +263,7 @@ function formInner(){
     <div class="full"><label for="f-desc">Description</label><input id="f-desc" type="text" placeholder="e.g. Groceries" value="${esc(draft.desc)}" data-c="d-desc"></div>
     <div><label for="f-type">Category</label><select id="f-type" data-c="d-type">${TYPES.map(T=>`<option value="${T.k}" ${T.k===draft.type?'selected':''}>${T.label}</option>`).join('')}</select></div>
     <div><label for="f-sub">Subcategory</label><select id="f-sub" data-c="d-sub">${subs.length?'':'<option value="">Add lines on Set-Up first</option>'}${subs.map(s=>`<option value="${s.id}" ${s.id===draft.sub?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>
+    ${draft.type==='savings'?`<label class="full wdrow"><input type="checkbox" data-c="d-wd" ${draft.wd?'checked':''}> This is a withdrawal (money taken out of savings)</label>`:''}
     <div class="full" ${editId?'style="display:flex;gap:8px"':''}><button class="btn" type="submit" style="${editId?'flex:1':'width:100%'}">${editId?'Save changes':'Add transaction'}</button>${editId?'<button class="btn ghost" type="button" data-a="canceledit">Cancel</button>':''}</div>
   </form>
 `;
@@ -282,7 +283,7 @@ function sheetHtml(){
 }
 function rowHtml(t){const s=subOf(t.sub),inc=typeOf(t.sub)==='income';return `<li class="${t.id===editId?'editing':''}${t.refunded?' refunded':''}">
     <span class="d">${mShort(cur)} ${+t.date.slice(8)}</span>
-    <span>${t.ruleId?`<span class="repwrap" title="From a recurring schedule">${REP}</span>`:''}${esc(t.desc||s?.name||'')}<div class="s">${esc(s?s.name:'?')}${t.expr?` (${esc(t.expr.replace(/\s+/g,'').replace(/([+\-*/])/g,' $1 '))})`:''}</div></span>
+    <span>${t.ruleId?`<span class="repwrap" title="From a recurring schedule">${REP}</span>`:''}${esc(t.desc||s?.name||'')}<div class="s">${esc(s?s.name:'?')}${t.amt<0?' (withdrawal)':''}${t.expr?` (${esc(t.expr.replace(/\s+/g,'').replace(/([+\-*/])/g,' $1 '))})`:''}</div></span>
     <span class="a ${inc&&!t.refunded?'inc':''}">${inc?'+':''}${money(t.amt)}${t.refunded?'<div class="s">Refunded</div>':''}</span>
     <button class="xbtn editbtn" data-a="edittx" data-v="${t.id}" aria-label="Edit ${esc(t.desc||s?.name||'transaction')}" title="Edit"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14l.8-3.2L11.6 2a1.4 1.4 0 012 2l-8.8 8.8L2 14z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
     <button class="xbtn refbtn${t.refunded?' on':''}" data-a="reftx" data-v="${t.id}" aria-label="${t.refunded?'Undo refund':'Mark as refunded'}" title="${t.refunded?'Undo refund':'Mark as refunded'}"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3L2.5 6.5 6 10M2.5 6.5H10a3.5 3.5 0 010 7H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -660,7 +661,7 @@ document.addEventListener('click',e=>{
   else if(a==='back-email'){step='email';render()}
   else if(a==='signout'){if(window.__BT_SIGNOUT)window.__BT_SIGNOUT()}
   else if(a==='tab'){cancelEdit();if(tab==='cats'&&v!=='cats'){S.setupDone=true;save()}tab=v;render();window.scrollTo(0,0)}
-  else if(a==='edittx'){const t=S.tx.find(x=>x.id===v);if(t){editId=v;draft={date:t.date,desc:t.desc||'',amt:t.expr||String(t.amt),type:typeOf(t.sub)||'expenses',sub:t.sub};sheetOpen=isMobile();render();const f=document.getElementById('f-amt');if(f){f.scrollIntoView({block:'center',behavior:'smooth'});f.focus()}}}
+  else if(a==='edittx'){const t=S.tx.find(x=>x.id===v);if(t){editId=v;draft={date:t.date,desc:t.desc||'',amt:t.expr||String(Math.abs(t.amt)),wd:t.amt<0,type:typeOf(t.sub)||'expenses',sub:t.sub};sheetOpen=isMobile();render();const f=document.getElementById('f-amt');if(f){f.scrollIntoView({block:'center',behavior:'smooth'});f.focus()}}}
   else if(a==='plus'){const f=document.getElementById('f-amt');if(f){let v=f.value.trim();if(v&&!/[+\-*/(]$/.test(v))v+='+';f.value=v;draft.amt=v;const pv=document.getElementById('amt-preview');if(pv)pv.textContent=amtPreview(v);f.focus()}}
   else if(a==='opensheet'){sheetOpen=true;render();setTimeout(()=>{const f=document.getElementById('f-amt');if(f)f.focus()},60)}
   else if(a==='closesheet'){cancelEdit();render();const fb=document.querySelector('.fab');if(fb)fb.focus()}
@@ -731,6 +732,7 @@ document.addEventListener('change',e=>{
   if(c==='impopt'){impOpts[t.dataset.k]=t.checked;return}
   if(c==='month'){cancelEdit();cur=t.value;selDay=null;render()}
   else if(c==='d-type'){draft.type=t.value;draft.sub='';render()}
+  else if(c==='d-wd'){draft.wd=t.checked;render()}
   else if(c==='d-sub')draft.sub=t.value;
   else if(c==='d-date'){if(t.value){draft.date=t.value;if(!editId)selDay=t.value;render()}}
   else if(c==='r-type'){rd.type=t.value;rd.sub='';render()}
@@ -779,10 +781,11 @@ document.addEventListener('submit',e=>{
     const amt=parseAmount(draft.amt),ex=isSum(draft.amt)?draft.amt.trim():'';
     if(!(amt>0)){toast(isSum(draft.amt)?'That sum needs to add up to more than 0':'Enter an amount like 50 or 50+100');return}
     if(!draft.sub){toast('Pick a subcategory');return}
-    if(editId){const t=S.tx.find(x=>x.id===editId);if(t){t.date=draft.date;t.desc=draft.desc.trim();t.amt=r2(amt);if(ex)t.expr=ex;else delete t.expr;t.sub=draft.sub;if(selDay)selDay=t.date}
+    const sgn=draft.type==='savings'&&draft.wd?-1:1;
+    if(editId){const t=S.tx.find(x=>x.id===editId);if(t){t.date=draft.date;t.desc=draft.desc.trim();t.amt=r2(amt*sgn);if(ex)t.expr=ex;else delete t.expr;t.sub=draft.sub;if(selDay)selDay=t.date}
       editId=null;sheetOpen=false;draft.amt='';draft.desc='';save();render();toast('Changes saved');return}
-    S.tx.push(Object.assign({id:uid(),date:draft.date,desc:draft.desc.trim(),amt:r2(amt),sub:draft.sub},ex?{expr:ex}:{}));
-    const sub=subOf(draft.sub);draft.amt='';draft.desc='';save();render();toast('Added to '+sub.name);
+    S.tx.push(Object.assign({id:uid(),date:draft.date,desc:draft.desc.trim(),amt:r2(amt*sgn),sub:draft.sub},ex?{expr:ex}:{}));
+    const sub=subOf(draft.sub);draft.amt='';draft.desc='';save();render();toast(sgn<0?'Withdrawal taken from '+sub.name:'Added to '+sub.name);
     const f=document.getElementById('f-amt');if(f)f.focus();
   }
 });

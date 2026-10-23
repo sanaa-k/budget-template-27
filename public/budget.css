@@ -361,3 +361,6 @@ table{width:100%;border-collapse:collapse}
 .crow.c2{grid-template-columns:minmax(0,1fr) 84px 84px 26px}
 .crow.c3{grid-template-columns:minmax(0,1fr) 64px 64px 64px 26px}
 @media (max-width:480px){.crow.c1{grid-template-columns:minmax(0,1fr) 100px 24px}.crow.c2{grid-template-columns:minmax(0,1fr) 80px 80px 24px}.crow.c3{grid-template-columns:minmax(0,1fr) 64px 64px 64px 24px}}
+
+.wdrow{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted)}
+.wdrow input{width:auto;min-height:0}

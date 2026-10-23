@@ -391,7 +391,7 @@ function currentBal(id){
   if(t==='debt')return Math.max(0,r2((s.start||0)-allTime(id)));
   return 0;
 }
-const monthCol=i=>`hsl(${(i*53+160)%360} 28% 46%)`;
+const monthCol=i=>`hsl(${Math.round((i*137.5+170)%360)} 34% ${i%2?54:40}%)`;
 function monthSegs(id,mk){return MONTHS.filter(m=>m<=mk).map(m=>({m,v:inMonth(id,m)})).filter(x=>x.v>0)}
 function segBar(total,segs,max,kind){
   const w=v=>max>0?Math.max(0,Math.min(100,v/max*100)):0,sum=r2(segs.reduce((a,x)=>a+x.v,0)),base=Math.max(0,total-sum);

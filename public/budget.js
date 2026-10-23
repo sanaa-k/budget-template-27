@@ -192,13 +192,13 @@ const monthTx=mk=>S.tx.filter(t=>t.date.slice(0,7)===mk);
 
 function calc(mk){
   const tx=monthTx(mk),act={};
-  tx.forEach(t=>act[t.sub]=r2((act[t.sub]||0)+t.amt));
+  tx.forEach(t=>{if(!t.refunded)act[t.sub]=r2((act[t.sub]||0)+t.amt)});
   const plan=S.plan[mk]||{},sp=schedPlan(mk),g={};
   TYPES.forEach(T=>{g[T.k]={planned:0,actual:0};S.cats[T.k].forEach(c=>{g[T.k].planned+=liveIn(c,mk)?(plan[c.id]>0?plan[c.id]:(sp[c.id]||0)):0;g[T.k].actual+=act[c.id]||0})});
   return {mk,tx,act,plan,sp,g};
 }
 const left=(g,f)=>r2(g.income[f]-g.bills[f]-g.expenses[f]-g.savings[f]-g.investments[f]-g.debt[f]);
-function cum(id,uptoMk){return r2(S.tx.filter(t=>t.sub===id&&t.date.slice(0,7)<=uptoMk).reduce((a,t)=>a+t.amt,0))}
+function cum(id,uptoMk){return r2(S.tx.filter(t=>!t.refunded&&t.sub===id&&t.date.slice(0,7)<=uptoMk).reduce((a,t)=>a+t.amt,0))}
 
 /* ---------- auth screen ---------- */
 function renderGate(){
@@ -269,7 +269,7 @@ const txHint=()=>(editId?'Change the date above, or tap a day on the calendar.':
 const txTip=()=>tipHtml({k:'txform',label:'adding a transaction',tip:txHint()},'','How to add a transaction');
 function formCard(){return `<div class="card ${editId?'editing':''}"><h2>${editId?'Edit transaction':'Add a transaction'}${txTip()}</h2>${formInner()}</div>`}
 function dayListHtml(){
-  const l=S.tx.filter(t=>t.date===draft.date);if(!l.length)return '';
+  const l=S.tx.filter(t=>t.date===draft.date&&calShow().includes(typeOf(t.sub)));if(!l.length)return '';
   return `<div class="sheet-day"><h3>Already logged on ${esc(mShort(cur))} ${+draft.date.slice(8)}</h3><ul class="tx" style="margin-top:6px">${l.map(rowHtml).join('')}</ul></div>`;
 }
 function sheetHtml(){
@@ -278,11 +278,12 @@ function sheetHtml(){
   <div class="sheet-head"><div style="display:flex;align-items:center;min-width:0"><h2 id="sheet-title">${editId?'Edit transaction':'Add a transaction'}</h2>${txTip()}</div><button class="btn ghost" type="button" data-a="closesheet">Done</button></div>
   ${formInner()}${dayListHtml()}</div>`;
 }
-function rowHtml(t){const s=subOf(t.sub),inc=typeOf(t.sub)==='income';return `<li class="${t.id===editId?'editing':''}">
+function rowHtml(t){const s=subOf(t.sub),inc=typeOf(t.sub)==='income';return `<li class="${t.id===editId?'editing':''}${t.refunded?' refunded':''}">
     <span class="d">${mShort(cur)} ${+t.date.slice(8)}</span>
     <span>${t.ruleId?`<span class="repwrap" title="From a recurring schedule">${REP}</span>`:''}${esc(t.desc||s?.name||'')}<div class="s">${esc(s?s.name:'?')}${t.expr?` (${esc(t.expr.replace(/\s+/g,'').replace(/([+\-*/])/g,' $1 '))})`:''}</div></span>
-    <span class="a ${inc?'inc':''}">${inc?'+':''}${money(t.amt)}</span>
+    <span class="a ${inc&&!t.refunded?'inc':''}">${inc?'+':''}${money(t.amt)}${t.refunded?'<div class="s">Refunded</div>':''}</span>
     <button class="xbtn editbtn" data-a="edittx" data-v="${t.id}" aria-label="Edit ${esc(t.desc||s?.name||'transaction')}" title="Edit"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 14l.8-3.2L11.6 2a1.4 1.4 0 012 2l-8.8 8.8L2 14z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
+    <button class="xbtn refbtn${t.refunded?' on':''}" data-a="reftx" data-v="${t.id}" aria-label="${t.refunded?'Undo refund':'Mark as refunded'}" title="${t.refunded?'Undo refund':'Mark as refunded'}"><svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3L2.5 6.5 6 10M2.5 6.5H10a3.5 3.5 0 010 7H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button class="xbtn" data-a="deltx" data-v="${t.id}" aria-label="Delete transaction">&times;</button></li>`}
 function schedRowHtml(s){const sub=subOf(s.sub),inc=typeOf(s.sub)==='income';return `<li class="sched">
     <span class="d">${mShort(cur)} ${+s.date.slice(8)}</span>
@@ -291,16 +292,16 @@ function schedRowHtml(s){const sub=subOf(s.sub),inc=typeOf(s.sub)==='income';ret
     <button class="linkbtn small skipbtn" data-a="skip" data-r="${s.rid}" data-v="${s.date}" aria-label="Skip ${esc(s.desc)} on ${esc(shortDate(s.date))}">Skip</button></li>`}
 function txCard(c){
   const sch=scheduledIn(cur);
-  let list=[...c.tx.map(t=>({d:t.date,html:rowHtml(t)})),...sch.map(s=>({d:s.date,html:schedRowHtml(s)}))].sort((a,b)=>b.d.localeCompare(a.d));
-  if(selDay) list=list.filter(x=>x.d===selDay);
+  let list=[...c.tx.map(t=>({d:t.date,sub:t.sub,html:rowHtml(t)})),...sch.map(s=>({d:s.date,sub:s.sub,html:schedRowHtml(s)}))].sort((a,b)=>b.d.localeCompare(a.d));
+  if(selDay){const cs=calShow();list=list.filter(x=>x.d===selDay&&cs.includes(typeOf(x.sub)))}
   const head=(selDay?`${esc(mLabel(cur).split(' ')[0])} ${+selDay.slice(8)} <button class="linkbtn small" data-a="clearday">Show all</button>`:`${c.tx.length} this month${sch.length?`, ${sch.length} scheduled`:''}`)+` <button class="linkbtn small" data-a="gorec" style="margin-left:6px">Recurring</button>`;
   return `<div class="card"><div class="txhead"><h2>Transactions</h2><span class="small muted">${head}</span></div>
   ${list.length?`<ul class="tx">${list.map(x=>x.html).join('')}</ul>`
-  :`<p class="empty">${selDay?'Nothing logged on this day.':(isMobile()?'No transactions yet. Tap + to add your first one.':'No transactions yet. Add your first one above.')}</p>`}</div>`;
+  :`<p class="empty">${selDay?'Nothing logged on this day for the categories you are showing. Change them under Daily activity.':(isMobile()?'No transactions yet. Tap + to add your first one.':'No transactions yet. Add your first one above.')}</p>`}</div>`;
 }
 function noSpendDays(c){
   const [y,m]=cur.split('-').map(Number),n=new Date(y,m,0).getDate(),spend={};
-  const nsk=nsShow();c.tx.forEach(t=>{if(nsk.includes(typeOf(t.sub)))spend[t.date]=1});
+  const nsk=nsShow();c.tx.forEach(t=>{if(!t.refunded&&nsk.includes(typeOf(t.sub)))spend[t.date]=1});
   const lastTx=c.tx.reduce((a,t)=>t.date>a?t.date:a,'0000'),asOf=todayStr()>lastTx?todayStr():lastTx;
   let tracked=0,none=0;
   for(let d=1;d<=n;d++){const ds=cur+'-'+pad(d);if(ds<=asOf){tracked++;if(!spend[ds])none++}}
@@ -326,10 +327,12 @@ function calendar(c){
   const [y,m]=cur.split('-').map(Number);
   const first=new Date(y,m-1,1).getDay(),n=new Date(y,m,0).getDate();
   const show=calShow(),exOnly=show.length===1&&show[0]==='expenses';
-  const daily={},nsDay={},nsk0=nsShow();c.tx.forEach(t=>{if(show.includes(typeOf(t.sub)))daily[t.date]=r2((daily[t.date]||0)+t.amt);if(nsk0.includes(typeOf(t.sub)))nsDay[t.date]=1});
+  const daily={},nsDay={},has={},inc={},outf={},nsk0=nsShow(),hasInc=show.includes('income'),hasOut=show.some(k=>k!=='income');
+  c.tx.forEach(t=>{if(t.refunded)return;const ty=typeOf(t.sub);if(show.includes(ty)){has[t.date]=1;if(ty==='income')inc[t.date]=r2((inc[t.date]||0)+t.amt);else outf[t.date]=r2((outf[t.date]||0)+t.amt)}if(nsk0.includes(ty))nsDay[t.date]=1});
+  Object.keys(has).forEach(d=>{daily[d]=hasInc&&hasOut?r2((inc[d]||0)-(outf[d]||0)):hasInc?(inc[d]||0):(outf[d]||0)});
   const lastTx=c.tx.reduce((a,t)=>t.date>a?t.date:a,'0000');
   const asOf=todayStr()>lastTx?todayStr():lastTx;
-  const mx=Math.max(1,...Object.values(daily));
+  const mx=Math.max(1,...Object.values(daily).map(Math.abs));
   const schedDay={};scheduledIn(cur).forEach(s=>{const o=schedDay[s.date]=schedDay[s.date]||{spend:0,items:[]};if(show.includes(typeOf(s.sub)))o.spend=r2(o.spend+s.amt);o.items.push(s.desc+' '+money(s.amt))});
   let cells=['S','M','T','W','T','F','S'].map(d=>`<div class="dow">${d}</div>`).join('');
   for(let i=0;i<first;i++)cells+='<div class="day blank"></div>';
@@ -338,15 +341,15 @@ function calendar(c){
     let cls='day',style='',lab='';
     const sd=schedDay[ds],dd=0;
     if(!tracked){cls+=' future';if(sd&&sd.spend>0){cls+=' sch';lab=money(sd.spend)}}
-    else if(v===0){if(!nsDay[ds])cls+=' none'}
-    else{const p=Math.round(18+57*(v/mx));style=`background:color-mix(in srgb,var(--amber) ${p}%,var(--surface));border-color:transparent`;lab=money(v)}
+    else if(!has[ds]){if(!nsDay[ds])cls+=' none'}
+    else{const p=Math.round(18+57*(Math.abs(v)/mx)),pos=hasInc&&(!hasOut||v>=0);style=`background:color-mix(in srgb,var(${pos?'--teal':'--amber'}) ${p}%,var(--surface));border-color:transparent`;lab=(hasInc&&hasOut?(v>=0?'+':'-'):'')+money(Math.abs(v))}
     if(ds===draft.date)cls+=' active';
     cells+=`<button class="${cls}" style="${style}" data-a="day" data-v="${ds}" aria-pressed="${selDay===ds}" aria-label="${mLabel(cur).split(' ')[0]} ${d}, ${lab||(cls.includes(' none')?(exOnly?'no spend':'nothing logged'):'no data yet')}${dd?', bills and debt payments '+money(dd):''}${sd?', scheduled: '+esc(sd.items.join(', ')):''}"><span class="n">${d}</span>${sd?`<span class="repwrap tr" title="Scheduled: ${esc(sd.items.join(', '))}">${REP}</span>`:''}${dd?`<span class="bot"><span class="m">${lab}</span><span class="dm" title="Bills and debt payments ${money(dd)}"><svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><b>${money(dd)}</b></span></span>`:`<span class="m">${lab}</span>`}</button>`;
   }
   const CK=[['expenses','Expenses'],['income','Income'],['bills','Bills'],['savings','Savings'],['investments','Investments'],['debt','Debt Payments']];
   const chips=CK.map(([k,l])=>`<button type="button" class="chip" aria-pressed="${show.includes(k)}" data-a="caltoggle" data-v="${k}">${l}</button>`).join('');
-  const ctip=tipHtml({k:'cal-show',label:'Calendar view',tip:"To see your discretionary spending, show Expenses only. Switch on Income, Bills, Savings, Investments or Debt Payments to see your overall cash flow instead."},'','About the calendar view');
-  return `<div class="card" id="cal"><h2>${exOnly?'Daily spending':'Daily activity'}</h2><div class="calfilter"><span class="small muted">Show</span>${ctip}<div class="chips">${chips}</div></div><div class="cal">${cells}</div></div>`;
+  const ctip=tipHtml({k:'cal-show',label:'Calendar view',tip:"To see your discretionary spending, show Expenses only. Switch on Income, Bills, Savings, Investments or Debt Payments to see your overall cash flow instead. With income on, each day shows money in minus money out: teal days are net positive, orange days are net negative."},'','About the calendar view');
+  return `<div class="card" id="cal"><h2>${exOnly?'Daily spending':'Daily activity'}</h2><div class="calfilter"><span class="small muted">Show</span>${ctip}<div class="chips">${chips}</div></div><div class="cal">${cells}</div><div class="callegend small muted"><span><i class="sw" style="background:var(--sage)"></i>${exOnly?'No spend':'Nothing logged'}</span>${hasInc?'<span><i class="sw" style="background:var(--teal)"></i>'+(hasOut?'Net money in':'Money in')+'</span>':''}${hasOut||!hasInc?'<span><i class="sw" style="background:var(--amber)"></i>'+(hasInc?'Net money out':'Money out')+'</span>':''}</div></div>`;
 }
 function charts(c){
   const rows=['bills','expenses','savings','investments','debt'];
@@ -373,8 +376,8 @@ function groupTable(k,c){
   return `<div class="card"><table class="bt"><thead><tr><th>${T.label}${tipHtml(T)}</th><th>Planned</th><th>Actual</th></tr></thead><tbody>${rows||'<tr><td colspan="3" class="muted small">No lines yet. Add them on the Set-Up tab.</td></tr>'}</tbody>
    <tfoot><tr><td>Total</td><td class="n">${money(c.g[k].planned)}</td><td class="n">${money(c.g[k].actual)}</td></tr></tfoot></table></div>`;
 }
-function allTime(id){return r2(S.tx.filter(t=>t.sub===id).reduce((a,t)=>a+t.amt,0))}
-function inMonth(id,mk){return r2(S.tx.filter(t=>t.sub===id&&t.date.slice(0,7)===mk).reduce((a,t)=>a+t.amt,0))}
+function allTime(id){return r2(S.tx.filter(t=>!t.refunded&&t.sub===id).reduce((a,t)=>a+t.amt,0))}
+function inMonth(id,mk){return r2(S.tx.filter(t=>!t.refunded&&t.sub===id&&t.date.slice(0,7)===mk).reduce((a,t)=>a+t.amt,0))}
 function latestEntry(id){
   const ms=Object.keys(S.bal||{}).filter(m=>S.bal[m]&&S.bal[m][id]!==undefined&&S.bal[m][id]!==null).sort();
   return ms.length?{m:ms[ms.length-1],v:S.bal[ms[ms.length-1]][id]}:null;
@@ -400,7 +403,7 @@ function progBar(total,add,max,kind){
 }
 const realMonth=()=>{const cm=todayStr().slice(0,7);return cm<MONTHS[0]?MONTHS[0]:(cm>MONTHS[MONTHS.length-1]?MONTHS[MONTHS.length-1]:cm)};
 function loanAt(s,mk){
-  const before=r2(S.tx.filter(t=>t.sub===s.id&&t.date.slice(0,7)<mk).reduce((a,t)=>a+t.amt,0)),m=inMonth(s.id,mk),total=r2(before+m);
+  const before=r2(S.tx.filter(t=>!t.refunded&&t.sub===s.id&&t.date.slice(0,7)<mk).reduce((a,t)=>a+t.amt,0)),m=inMonth(s.id,mk),total=r2(before+m);
   return {before,m,total,rem:Math.max(0,r2((s.start||0)-total))};
 }
 function goalsCard(){
@@ -444,7 +447,7 @@ function renderOverview(){
   const act=series,mxv=Math.max(1,...grid.flatMap(g=>g.vals));
   const mini=grid.map(({m,vals},mi)=>`<div class="c" tabindex="0"><div class="ttip ${mi<3?'tl':mi>=grid.length-3?'tr':''}"><b>${esc(mLabel(m))}</b>${series.map((x,i)=>`<div><i style="background:${x.col}"></i><span>${esc(x.l)}</span><em>${money(vals[i])}</em></div>`).join('')}</div><div class="bars">${series.map((x,i)=>`<i style="height:${vals[i]/mxv*100}%;background:${x.col}" aria-label="${esc(mLabel(m))} ${esc(x.l)} ${money(vals[i])}"></i>`).join('')}</div><span class="lb">${mShort(m)}</span></div>`).join('');
   const trendW=Math.max(0,all.length*(act.length*10+10));
-  const yearUsed=(id,y)=>r2(S.tx.filter(t=>t.sub===id&&t.date.startsWith(String(y))).reduce((a,t)=>a+t.amt,0));
+  const yearUsed=(id,y)=>r2(S.tx.filter(t=>!t.refunded&&t.sub===id&&t.date.startsWith(String(y))).reduce((a,t)=>a+t.amt,0));
   const room=s=>s.room||0;
   const roomRow=(title,left,used,total,note)=>`<div class="goalrow"><div class="t"><b>${esc(title)}</b><span class="${left<0?'over':''}" ${left<0?'style="color:var(--bad);font-weight:600"':''}>${left<0?money(-left)+' over':money(left)+' room left'}</span></div><div class="prog"><i style="width:${total>0?Math.min(100,used/total*100):0}%${left<0?';background:var(--bad)':''}"></i></div><div class="small muted">${note}</div></div>`;
   const lim=S.cats.investments.filter(s=>!s.archived&&room(s)>0).map(s=>{
@@ -587,6 +590,7 @@ function applyImport(res,o){
       let c=old.find(x=>!used.has(x.id)&&nameKey(x.name)===nameKey(it.name));
       if(c){delete c.archived;delete c.until}else c={id:uid(),name:it.name};
       used.add(c.id);next.push(c);
+      if(o.amounts&&it.planned>0)c.base=it.planned;
       if(o.amounts&&it.planned>0)MONTHS.forEach(m=>{S.plan[m]=S.plan[m]||{};S.plan[m][c.id]=it.planned});
     });
     old.forEach(c=>{if(!used.has(c.id)&&inUse(c.id))next.push(c)});
@@ -615,10 +619,10 @@ function renderCats(){
   const xb=s=>`<button class="xbtn" data-a="delcat" data-v="${s.id}" aria-label="Remove ${esc(s.name)}">&times;</button>`;
   const nameIn=s=>`<input type="text" aria-label="Name" value="${esc(s.name)}" data-c="rename" data-v="${s.id}">`;
   const card=T=>{
-    const ex=extras[T.k]||[],list=S.cats[T.k].filter(s=>!s.archived);
+    const ex=[['base','Planned per month']].concat(extras[T.k]||[]),list=S.cats[T.k].filter(s=>!s.archived);
     let body;
     if(!list.length)body='<p class="empty">No lines yet. Add your first one above.</p>';
-    else if(ex.length)body=`<div class="crow c${ex.length} head"><span>Name</span>${ex.map(e=>`<span>${e[1]}</span>`).join('')}<span></span></div>`+list.map(s=>`<div class="crow c${ex.length}">${nameIn(s)}${ex.map(e=>`<input type="number" min="0" aria-label="${esc(s.name)} ${e[1].toLowerCase()}" placeholder="0" value="${s[e[0]]||''}" data-c="extra" data-k="${e[0]}" data-v="${s.id}">`).join('')}${xb(s)}</div>`).join('');
+    else if(ex.length)body=`<div class="crow c${ex.length} head"><span>Name</span>${ex.map(e=>`<span>${e[1]}</span>`).join('')}<span></span></div>`+list.map(s=>`<div class="crow c${ex.length}">${nameIn(s)}${ex.map(e=>`<input type="number" min="0" aria-label="${esc(s.name)} ${e[1].toLowerCase()}" placeholder="0" value="${s[e[0]]||''}" data-c="${e[0]==='base'?'basepl':'extra'}" data-k="${e[0]}" data-v="${s.id}">`).join('')}${xb(s)}</div>`).join('');
     else body=`<div class="chips">${list.map(s=>`<div class="chip">${nameIn(s)}${xb(s)}</div>`).join('')}</div>`;
     return `<div class="card"><h2>${T.label}${tipHtml(Object.assign({},T,{tip:T.tip+(hints[T.k]?' '+hints[T.k]:'')}))}</h2>
       <form class="addrow" data-form="addcat" data-t="${T.k}"><input type="text" id="add-${T.k}" placeholder="New ${noun[T.k]}" aria-label="New ${noun[T.k]} name" autocomplete="off"><button class="btn" type="submit">Add</button></form>
@@ -670,6 +674,7 @@ document.addEventListener('click',e=>{
   else if(a==='day'){if(editId){draft.date=v;render();return}
     if(isMobile()){selDay=v;draft.date=v;sheetOpen=true;render();setTimeout(()=>{const f=document.getElementById('f-amt');if(f)f.focus()},60);return}selDay=selDay===v?null:v;draft.date=v;render()}
   else if(a==='clearday'){selDay=null;render()}
+  else if(a==='reftx'){const rt=S.tx.find(t=>t.id===v);if(rt){if(rt.refunded)delete rt.refunded;else rt.refunded=true;save();render();toast(rt.refunded?'Marked as refunded. It no longer counts toward your totals.':'Refund undone',1)}}
   else if(a==='deltx'){const dt=S.tx.find(t=>t.id===v);if(dt&&dt.ruleId)S.skip[dt.ruleId+'|'+dt.date]=true;S.tx=S.tx.filter(t=>t.id!==v);save();render();toast('Transaction deleted',1)}
   else if(a==='copyplan'){const p=MONTHS[MONTHS.indexOf(cur)-1];S.plan[cur]=Object.assign({},S.plan[p]||{});save();render();toast('Copied plan from '+mLabel(p))}
   else if(a==='estimate'){QUARTERS.forEach(x=>{S.nw[x.q]=S.nw[x.q]||{};S.cats.savings.forEach(s=>S.nw[x.q][s.id]=r2((s.open||0)+cum(s.id,x.end)));S.cats.investments.forEach(s=>S.nw[x.q][s.id]=r2((s.open||0)+cum(s.id,x.end)));S.cats.debt.forEach(s=>S.nw[x.q][s.id]=Math.max(0,r2((s.start||0)-cum(s.id,x.end))))});save();render();toast('Filled in from your transactions')}
@@ -744,6 +749,7 @@ document.addEventListener('change',e=>{
   else if(c==='bal'){S.bal=S.bal||{};S.bal[cur]=S.bal[cur]||{};if(t.value.trim()==='')delete S.bal[cur][t.dataset.v];else S.bal[cur][t.dataset.v]=Math.max(0,parseFloat(t.value)||0);save();render()}
   else if(c==='nw'){const q=t.dataset.q;S.nw[q]=S.nw[q]||{};S.nw[q][t.dataset.v]=parseFloat(t.value)||0;save();render()}
   else if(c==='rename'){const s=subOf(t.dataset.v);if(s&&t.value.trim()){s.name=t.value.trim();save();render()}}
+  else if(c==='basepl'){const s=subOf(t.dataset.v);if(s){const nv=Math.max(0,parseFloat(t.value)||0),old=s.base||0;MONTHS.forEach(m=>{S.plan[m]=S.plan[m]||{};const cv=S.plan[m][s.id]||0;if(!(cv>0)||cv===old){if(nv>0)S.plan[m][s.id]=nv;else delete S.plan[m][s.id]}});s.base=nv;save();render()}}
   else if(c==='extra'){const s=subOf(t.dataset.v);if(s){s[t.dataset.k]=Math.max(0,parseFloat(t.value)||0);save();render()}}
 });
 document.addEventListener('input',e=>{const t=e.target,c=t.dataset.c;if(c==='d-amt'){draft.amt=t.value;const pv=document.getElementById('amt-preview');if(pv)pv.textContent=amtPreview(t.value)}else if(c==='d-desc')draft.desc=t.value;else if(c==='r-amt'){rd.amt=t.value;updateRulePreview()}else if(c==='r-label')rd.label=t.value});

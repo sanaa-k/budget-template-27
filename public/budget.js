@@ -449,10 +449,10 @@ function renderOverview(){
   const trendW=Math.max(0,all.length*(act.length*10+10));
   const yearUsed=(id,y)=>r2(S.tx.filter(t=>!t.refunded&&t.sub===id&&t.date.startsWith(String(y))).reduce((a,t)=>a+t.amt,0));
   const room=s=>s.room||0;
-  const roomRow=(title,left,used,total,note)=>`<div class="goalrow"><div class="t"><b>${esc(title)}</b><span class="${left<0?'over':''}" ${left<0?'style="color:var(--bad);font-weight:600"':''}>${left<0?money(-left)+' over':money(left)+' room left'}</span></div><div class="prog"><i style="width:${total>0?Math.min(100,used/total*100):0}%${left<0?';background:var(--bad)':''}"></i></div><div class="small muted">${note}</div></div>`;
+  const roomRow=(title,left,used,total,note,id)=>`<div class="goalrow"><div class="t"><b>${esc(title)}</b><span class="${left<0?'over':''}" ${left<0?'style="color:var(--bad);font-weight:600"':''}>${left<0?money(-left)+' over':money(left)+' room left'}</span></div>${segBar(used,id?monthSegs(id,MONTHS[MONTHS.length-1]):[],total)}<div class="small muted">${note}</div></div>`;
   const lim=S.cats.investments.filter(s=>!s.archived&&room(s)>0).map(s=>{
     const r0=room(s),used=allTime(s.id),left=r2(r0-used);
-    return roomRow(s.name,left,used,r0,`${money(used)} contributed`);
+    return roomRow(s.name,left,used,r0,`${money(used)} contributed`,s.id);
   }).join('');
   return `<div class="bar"><h1>Oct 2026 to Dec 2027</h1></div>
   <div class="tiles ovt"><div class="tile"><div class="l">Total Income</div><div class="v">${money(tot.income)}</div><div class="h">Logged across all 15 months.</div></div>

@@ -197,9 +197,11 @@ function calc(mk){
   tx.forEach(t=>{if(!t.refunded)act[t.sub]=r2((act[t.sub]||0)+t.amt)});
   const plan=S.plan[mk]||{},sp=schedPlan(mk),g={};
   TYPES.forEach(T=>{g[T.k]={planned:0,actual:0};S.cats[T.k].forEach(c=>{g[T.k].planned+=liveIn(c,mk)?(plan[c.id]>0?plan[c.id]:(sp[c.id]||0)):0;g[T.k].actual+=act[c.id]||0})});
+  g.savings.dep=r2(tx.filter(t=>!t.refunded&&t.amt>0&&typeOf(t.sub)==='savings').reduce((a,t)=>a+t.amt,0));
   return {mk,tx,act,plan,sp,g};
 }
-const left=(g,f)=>r2(g.income[f]-g.bills[f]-g.expenses[f]-g.savings[f]-g.investments[f]-g.debt[f]);
+/* Withdrawals from savings never add to what is left: only money put into savings is subtracted. */
+const left=(g,f)=>r2(g.income[f]-g.bills[f]-g.expenses[f]-(f==='actual'&&g.savings.dep!==undefined?g.savings.dep:g.savings[f])-g.investments[f]-g.debt[f]);
 function cum(id,uptoMk){return r2(S.tx.filter(t=>!t.refunded&&t.sub===id&&t.date.slice(0,7)<=uptoMk).reduce((a,t)=>a+t.amt,0))}
 
 /* ---------- auth screen ---------- */
@@ -312,7 +314,7 @@ function noSpendDays(c){
 }
 function tiles(c){
   const lp=left(c.g,'planned'),la=left(c.g,'actual'),inc=c.g.income.actual;
-  const sr=inc>0?(c.g.savings.actual+c.g.investments.actual)/inc:null,ns=noSpendDays(c);
+  const sr=inc>0?(c.g.savings.dep+c.g.investments.actual)/inc:null,ns=noSpendDays(c);
   const tip=(k,label,text)=>tipHtml({k,label,tip:text},'',`About ${label}`);
   return `<div class="tiles compact">
    <div class="tile"><div class="l">What's Left${tip('t-left',"What's Left",`Income you have received this month minus everything you have logged so far: bills, expenses, savings, investments and debt payments. The planned figure underneath is what you expected when you set the month up.`)}</div><div class="v ${la<0?'bad':''}">${money(la)}</div><div class="small muted">Planned: ${money(lp)}</div></div>
@@ -430,7 +432,7 @@ function renderMonth(){
 function renderOverview(){
   const all=MONTHS.map(m=>({m,c:calc(m)}));
   const tot={};TYPES.forEach(T=>tot[T.k]=r2(all.reduce((a,x)=>a+x.c.g[T.k].actual,0)));
-  const totLeft=r2(tot.income-tot.bills-tot.expenses-tot.savings-tot.investments-tot.debt);
+  const totLeft=r2(all.reduce((a,x)=>a+left(x.c.g,'actual'),0));
   const rows=all.map(({m,c})=>{const l=left(c.g,'actual');
     return `<tr><td><button class="linkbtn" style="color:var(--forest)" data-a="gomonth" data-v="${m}">${esc(mLabel(m))}</button></td>${TYPES.map(T=>`<td>${money(c.g[T.k].actual)}</td>`).join('')}<td>${money(l)}</td></tr>`}).join('');
   const TR=[['income','Income','var(--teal)'],['bills','Bills','var(--c-bills)'],['expenses','Expenses','var(--c-exp)'],['savings','Savings','var(--forest)'],['investments','Investments','var(--c-inv)'],['debt','Debt Payments','var(--amber)']];

@@ -225,8 +225,7 @@ function renderGate(){
 /* ---------- shell ---------- */
 function shell(inner){
   const t=[['cats','Set-Up'],['month','Monthly Spending'],['overview','Overview'],['networth','Net Worth']].filter(x=>!(x[0]==='cats'&&S.hideSetup));
-  return `<div class="proto">Beta test. Your budget is saved to your account.</div>
-  <header class="top"><div class="top-in">
+  return `<header class="top"><div class="top-in">
     <div class="brand">Budget Template</div>
     <nav class="tabs" aria-label="Sections">${t.map(([k,l])=>`<button class="tab" data-a="tab" data-v="${k}" ${tab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>
     <div class="swatches" role="group" aria-label="Colour scheme">${PALETTES.map(p=>`<button class="sw-btn" style="background:${p.c}" data-a="palette" data-v="${p.k}" aria-label="${p.n} colour scheme" title="${p.n}" aria-pressed="${(S.palette||'forest')===p.k}"></button>`).join('')}</div>

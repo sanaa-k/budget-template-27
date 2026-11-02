@@ -232,9 +232,28 @@ function shell(inner){
     <div class="who"><button class="linkbtn undobtn" data-a="undo" aria-label="Undo" title="Undo (Ctrl+Z)" ${undoStack.length?'':'disabled'}>↶</button><button class="linkbtn undobtn" data-a="redo" aria-label="Redo" title="Redo (Ctrl+Shift+Z)" ${redoStack.length?'':'disabled'}>↷</button><span class="email">${esc(user)}</span> ${S.hideSetup?`<button class="linkbtn" data-a="tab" data-v="cats" ${tab==='cats'?'aria-current="page"':''}>Set-Up</button>`:''}<button class="linkbtn" data-a="signout">Sign out</button></div>
   </div></header>
   <main>${inner}
-    <div class="foot"><button class="btn ghost" data-a="export" style="margin-right:8px">Download my data</button><button class="btn ghost" data-a="clear">${wipeArmed?'This erases everything you entered. Click again to confirm':'Clear all numbers'}</button>${tipHtml({k:'clear-all',label:'Clear all numbers',tip:'Deletes every transaction, planned amount, Net Worth balance and recurring item across all 15 months. It also resets starting balances, goals, loan balances and contribution room to 0. Your line names stay. It asks you to click twice, and the undo arrow at the top brings everything back right after.'},'','What Clear all numbers does')}<span class="small muted">Covers Oct 2026 to Dec 2027. Your budget is encrypted on your device, so only you can read it.</span></div>
+    <div class="foot"><button class="btn ghost" data-a="export" style="margin-right:8px">Download my data</button>${window.__BT_REKEY?'<button class="btn ghost" data-a="pwopen" style="margin-right:8px">Change passphrase</button>':''}<button class="btn ghost" data-a="clear">${wipeArmed?'This erases everything you entered. Click again to confirm':'Clear all numbers'}</button>${tipHtml({k:'clear-all',label:'Clear all numbers',tip:'Deletes every transaction, planned amount, Net Worth balance and recurring item across all 15 months. It also resets starting balances, goals, loan balances and contribution room to 0. Your line names stay. It asks you to click twice, and the undo arrow at the top brings everything back right after.'},'','What Clear all numbers does')}<span class="small muted">Covers Oct 2026 to Dec 2027. Your budget is encrypted on your device, so only you can read it.</span></div>
   </main>
+  ${pwModal()}
   ${tab==='month'&&isMobile()?(sheetOpen?sheetHtml():`<button class="fab" data-a="opensheet" aria-label="Add a transaction"><svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></button>`):''}`;
+}
+
+/* ---------- change passphrase ---------- */
+let pwOpen=false,pwBusy=false,pwMsg='',pwRec='';
+function pwModal(){
+  if(!pwOpen)return '';
+  if(pwRec)return `<div class="pwback"><div class="pwcard" role="dialog" aria-modal="true"><h2>Save your new recovery key</h2>
+    <p class="muted small">Your passphrase has changed. Your old recovery key no longer works. Save this one somewhere safe, like a password manager. It is shown once.</p>
+    <code class="pwcode">${esc(pwRec)}</code>
+    <div class="pwrow"><button class="btn ghost" data-a="pwcopy">Copy</button><button class="btn ghost" data-a="pwdl">Download</button></div>
+    <label class="wdrow" style="margin-top:12px"><input type="checkbox" id="pw-ack"> I have saved my recovery key</label>
+    <button class="btn" style="width:100%;margin-top:10px" data-a="pwdone">Done</button></div></div>`;
+  return `<div class="pwback"><div class="pwcard" role="dialog" aria-modal="true"><h2>Change passphrase</h2>
+    <p class="muted small">Choose a new passphrase. You will get a new recovery key, and your old passphrase and recovery key stop working. Your budget itself is not changed.</p>
+    <form id="pwform"><label for="pw1">New passphrase</label><input id="pw1" type="password" autocomplete="new-password" required>
+    <label for="pw2" style="margin-top:10px;display:block">Type it again</label><input id="pw2" type="password" autocomplete="new-password" required>
+    ${pwMsg?`<p class="hint" style="color:var(--bad)">${esc(pwMsg)}</p>`:''}
+    <div class="pwrow" style="margin-top:12px"><button class="btn" type="submit" ${pwBusy?'disabled':''}>${pwBusy?'Saving…':'Change passphrase'}</button><button class="btn ghost" type="button" data-a="pwclose">Cancel</button></div></form></div></div>`;
 }
 
 /* ---------- month tab ---------- */
@@ -720,6 +739,11 @@ document.addEventListener('click',e=>{
   else if(a==='ovtoggle'){const k=v;let s=(S.ovSel&&S.ovSel.length?S.ovSel:['income','bills','expenses']).slice();s=s.includes(k)?s.filter(x=>x!==k):s.concat(k);if(s.length){S.ovSel=s;save();render()}}
   else if(a==='togglesetup'){S.hideSetup=!S.hideSetup;if(S.hideSetup)tab='month';save();render();window.scrollTo(0,0);
     toast(S.hideSetup?'Set-Up tab hidden. Find it next to Sign out.':'Set-Up is back in the tabs')}
+  else if(a==='pwopen'){pwOpen=true;pwMsg='';pwRec='';pwBusy=false;render();const f=document.getElementById('pw1');if(f)f.focus()}
+  else if(a==='pwclose'){pwOpen=false;pwMsg='';render()}
+  else if(a==='pwcopy'){try{navigator.clipboard.writeText(pwRec);toast('Copied')}catch(e){}}
+  else if(a==='pwdl'){const u=document.createElement('a');u.href=URL.createObjectURL(new Blob(['Budget Template recovery key\n\n'+pwRec+'\n\nKeep this private. Anyone with it and your account can open your budget.\n'],{type:'text/plain'}));u.download='budget-recovery-key.txt';u.click()}
+  else if(a==='pwdone'){const k=document.getElementById('pw-ack');if(!k||!k.checked){toast('Tick the box once you have saved the key');return}pwOpen=false;pwRec='';render();toast('Passphrase changed')}
   else if(a==='export'){try{const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'}),u=document.createElement('a');u.href=URL.createObjectURL(blob);u.download='budget-backup-'+todayStr()+'.json';document.body.appendChild(u);u.click();u.remove();toast('Downloaded a backup of your budget')}catch(e){toast('Could not download')}}
   else if(a==='guideack'){S.guideAck=!S.guideAck;save();render()}
   else if(a==='guidehide'){S.guideOff=true;save();render();toast('Guide hidden. Bring it back with Setup guide at the top.')}
@@ -782,6 +806,13 @@ document.addEventListener('change',e=>{
 document.addEventListener('input',e=>{const t=e.target,c=t.dataset.c;if(c==='d-amt'){draft.amt=t.value;const pv=document.getElementById('amt-preview');if(pv)pv.textContent=amtPreview(t.value)}else if(c==='d-desc')draft.desc=t.value;else if(c==='r-amt'){rd.amt=t.value;updateRulePreview()}else if(c==='r-label')rd.label=t.value});
 document.addEventListener('submit',e=>{
   e.preventDefault();
+  if(e.target.id==='pwform'){
+    const a=document.getElementById('pw1').value,b=document.getElementById('pw2').value;
+    if(a.length<10){pwMsg='Use at least 10 characters. A few random words works well.';render();return}
+    if(a!==b){pwMsg='The two passphrases do not match.';render();return}
+    pwBusy=true;pwMsg='';render();
+    window.__BT_REKEY(a,S).then(r=>{pwRec=r;pwBusy=false;render()}).catch(err=>{pwBusy=false;pwMsg='Could not change it. Nothing was changed. '+(err&&err.message||'');render()});
+    return}
   if(e.target.id==='gateform'){emailVal=document.getElementById('em').value.trim();step='sent';render();return}
   if(e.target.dataset&&e.target.dataset.form==='rule'){
     const amt=parseAmount(rd.amt);

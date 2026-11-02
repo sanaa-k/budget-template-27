@@ -22,11 +22,12 @@ export default function Home() {
   function enter(obj, dek, env) {
     const { sb, uid, mail } = ctx.current
     let latest = null, timer = null, chain = Promise.resolve()
+    let cur = { dek, env }
     const flush = () => {
       if (!latest) return chain
       const data = latest; latest = null; clearTimeout(timer)
       chain = chain.then(async () => {
-        const envelope = await vault.encrypt(dek, data, env)
+        const envelope = await vault.encrypt(cur.dek, data, cur.env)
         const r = await sb.from('budgets').upsert({ user_id: uid, data: envelope, updated_at: new Date().toISOString() })
         if (r.error) console.error('Save failed', r.error.message)
       }).catch((e) => console.error('Save failed', e && e.message))
@@ -35,6 +36,18 @@ export default function Home() {
     window.__BT_INITIAL = obj || null
     window.__BT_USER = mail
     window.__BT_SAVE = (st) => { latest = JSON.parse(JSON.stringify(st)); clearTimeout(timer); timer = setTimeout(flush, 500) }
+    // Change the passphrase from an unlocked session: re-lock the same budget with a new key and a new recovery key.
+    window.__BT_REKEY = (newPass, state) => {
+      const p = chain.then(async () => {
+        const made = await vault.create(newPass, JSON.parse(JSON.stringify(state)))
+        await writeEnvelope(made.envelope)
+        cur = { dek: made.dek, env: made.envelope }
+        if (await vault.recall(uid)) await vault.remember(uid, made.dek)
+        return made.recovery
+      })
+      chain = p.catch(() => {})
+      return p
+    }
     window.__BT_SIGNOUT = async () => { await flush(); await vault.forget(uid); await sb.auth.signOut(); window.location.reload() }
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush() })
     window.addEventListener('pagehide', flush)
